@@ -125,6 +125,7 @@ def getRestaurantMenu(pos_profile, room=None, order_type=None):
     }
 
 @frappe.whitelist()
+@frappe.whitelist()
 def getBranch():
     user = frappe.session.user
     if user != "Administrator":
@@ -141,8 +142,9 @@ def getBranch():
         branch_name = branch_array[0].get("branch")
 
         return branch_name
-
-@frappe.whitelist()
+    else:
+        # Return default branch for Administrator
+        return "75@Hatchere"
 def getBranchRoom():
     user = frappe.session.user
     if user != "Administrator":
