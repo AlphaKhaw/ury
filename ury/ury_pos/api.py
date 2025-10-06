@@ -80,8 +80,31 @@ def getRestaurantMenu(pos_profile, room=None, order_type=None):
         order_by="item_name asc"
     )
     
-    menu_items_with_image = [
-        {
+    menu_items_with_image = []
+    for item in menu_items:
+        # Get add-ons for this item
+        add_ons = frappe.get_all(
+            "Item Add On",
+            filters={"parent": item.item, "parenttype": "Item"},
+            fields=["item"]
+        )
+
+        # Get rates for add-on items
+        add_ons_with_rates = []
+        for addon in add_ons:
+            addon_rate = frappe.db.get_value("Item Price",
+                {"item_code": addon.item, "selling": 1},
+                "price_list_rate"
+            )
+            if addon_rate:
+                addon_item_name = frappe.db.get_value("Item", addon.item, "item_name")
+                add_ons_with_rates.append({
+                    "item": addon.item,
+                    "item_name": addon_item_name,
+                    "rate": addon_rate
+                })
+
+        item_data = {
             "item": item.item,
             "item_name": item.item_name,
             "rate": item.rate,
@@ -89,9 +112,9 @@ def getRestaurantMenu(pos_profile, room=None, order_type=None):
             "disabled": item.disabled,
             "item_image": frappe.db.get_value("Item", item.item, "image"),
             "course": item.course,
+            "add_ons": add_ons_with_rates
         }
-        for item in menu_items
-    ]
+        menu_items_with_image.append(item_data)
     modified = frappe.db.get_value("URY Menu", menu, "modified")
     
     

@@ -209,9 +209,13 @@ const OrderPanel = () => {
                       <p className="text-sm text-gray-600">{item.selectedVariant.name}</p>
                     )}
                     {item.selectedAddons && item.selectedAddons.length > 0 && (
-                      <p className="text-sm text-gray-500">
-                        {item.selectedAddons.map(addon => addon.name).join(', ')}
-                      </p>
+                      <div className="mt-1">
+                        {item.selectedAddons.map((addon, index) => (
+                          <p key={index} className="text-sm text-gray-500 ml-2">
+                            └─ {addon.name}
+                          </p>
+                        ))}
+                      </div>
                     )}
                     <p className="text-gray-600 text-sm">{formatCurrency(calculateItemTotal(item))}</p>
                   </div>

@@ -358,7 +358,24 @@ export const useMenuStore = defineStore("menu", {
       if (!itemIndexExists) {
         item.qty = 1;
         item.comment = "";
+
+        // Add the main item to cart
         this.cart.push(item);
+
+        // Handle add-ons if they exist
+        if (item.add_ons && item.add_ons.length > 0) {
+          // Add add-ons as child items with parent reference
+          item.add_ons.forEach(addon => {
+            const addonItem = {
+              ...addon,
+              qty: 0, // Add-ons start with 0 quantity
+              comment: "",
+              parent_item: item.item, // Reference to parent item
+              is_addon: true
+            };
+            this.cart.push(addonItem);
+          });
+        }
 
         let message = `Added ${item.item} to Cart`;
         this.notification.createNotification(message);
@@ -408,6 +425,24 @@ export const useMenuStore = defineStore("menu", {
       // Set the item's quantity to zero
       item.qty = 0;
       this.cart.splice(index, 1);
+    },
+
+    // Handle add-on quantity changes
+    updateAddonQuantity(addonItem, quantity) {
+      const addonIndex = this.cart.findIndex((obj) => obj.item === addonItem.item && obj.is_addon);
+      if (addonIndex !== -1) {
+        this.cart[addonIndex].qty = quantity;
+      }
+    },
+
+    // Get add-ons for a specific parent item
+    getAddonsForItem(parentItem) {
+      return this.cart.filter(item => item.parent_item === parentItem && item.is_addon);
+    },
+
+    // Remove add-ons when parent item is removed
+    removeAddonsForItem(parentItem) {
+      this.cart = this.cart.filter(item => !(item.parent_item === parentItem && item.is_addon));
     },
   },
 });

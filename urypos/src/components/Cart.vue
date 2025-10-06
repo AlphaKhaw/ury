@@ -65,9 +65,10 @@
         Quantity
       </h3>
     </div>
+    <!-- Main items (non-addons) -->
     <div
       class="cart-item-details ml-3 mt-2 grid w-full grid-cols-3 gap-4 pb-2 md:w-full lg:w-full"
-      v-for="(cart_item, index) in this.menu.cart"
+      v-for="(cart_item, index) in groupedCartItems"
       :key="index"
     >
       <h3 class="w-full text-base text-gray-900 dark:text-white">
@@ -113,6 +114,52 @@
             ></path>
           </svg>
         </button>
+      </div>
+      
+      <!-- Add-ons for this main item -->
+      <div
+        v-for="addon in getAddonsForItem(cart_item.item)"
+        :key="addon.item"
+        class="cart-item-details ml-6 mt-1 grid w-full grid-cols-3 gap-4 pb-1 md:w-full lg:w-full addon-item"
+      >
+        <h3 class="w-full text-sm text-gray-600 dark:text-gray-400">
+          └─ {{ addon.item_name || addon.item }}
+        </h3>
+        <input
+          type="number"
+          class="block w-full border-none text-center text-sm text-gray-600 dark:text-gray-400"
+          :value="parseInt(addon.qty)"
+          @input="menu.updateAddonQuantity(addon, $event.target.value)"
+          @click="
+            this.menu.showModal(addon);
+            menu.showDialogCart = true;
+          "
+          readonly
+        />
+        <div class="items-center text-center">
+          <button
+            class="p-1 text-center"
+            type="button"
+            :disabled="this.recentOrders.restaurantTable"            
+            @click="menu.updateAddonQuantity(addon, Math.max(0, addon.qty - 1))"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              :style="{ fill: this.menu.setColorForBilledInvoice }"
+              class="bi bi-trash"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6Z"
+              ></path>
+              <path
+                d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1ZM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118ZM2.5 3h11V2h-11v1Z"
+              ></path>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -391,6 +438,18 @@ export default {
     const invoiceData = useInvoiceDataStore();
     return { menu, table, invoiceData, auth, recentOrders };
   },
+  computed: {
+    groupedCartItems() {
+      return this.menu.cart.filter(item => !item.is_addon);
+    }
+  },
+  methods: {
+    getAddonsForItem(parentItem) {
+      return this.menu.cart.filter(item => 
+        item.parent_item === parentItem && item.is_addon
+      );
+    }
+  },
   mounted() {
     window.scrollTo(0, 0);
   },
@@ -399,5 +458,17 @@ export default {
 <style>
 .bg-gray-100 {
   background-color: rgba(0, 0, 0, 0.2);
+}
+
+.addon-item {
+  background-color: #f8f9fa;
+  border-left: 3px solid #e9ecef;
+  margin-left: 1rem;
+  padding-left: 0.5rem;
+}
+
+.addon-item h3 {
+  font-size: 0.875rem;
+  color: #6c757d;
 }
 </style>
