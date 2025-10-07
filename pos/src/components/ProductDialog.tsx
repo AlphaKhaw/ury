@@ -238,7 +238,9 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
         ? {
             ...menuAddon,
             quantity: numericQuantity,
-            price: addon.price
+            price: addon.price,
+            parent_item: selectedItem.id, // Link to parent item
+            is_addon: true // Mark as add-on
           }
         : {
             id: addon.id,
@@ -251,7 +253,9 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
             course: '',
             description: '',
             special_dish: 0 as 0 | 1,
-            tax_rate: 0
+            tax_rate: 0,
+            parent_item: selectedItem.id, // Link to parent item
+            is_addon: true // Mark as add-on
           } as OrderItem;
       addToOrder(addonOrderItem);
     });
