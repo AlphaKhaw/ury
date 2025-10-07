@@ -51,6 +51,8 @@ export interface OrderItem extends MenuItem {
   selectedAddons?: { id: string; name: string; price: number }[];
   uniqueId?: string;
   comment?: string;
+  parent_item?: string;
+  is_addon?: boolean;
 }
 
 export interface PaymentMode {
@@ -145,6 +147,7 @@ interface POSStore extends POSState {
   validateQuantity: (quantity: number) => boolean;
   getItemPrice: (item: OrderItem) => number;
   getItemQuantityFromCart: (item: MenuItem) => number;
+  getAddonsForItem: (parentItem: string) => OrderItem[];
   loadTableOrder: (table: string) => Promise<void>;
   clearTableOrder: () => void;
   isMenuInteractionDisabled: () => boolean;
@@ -304,7 +307,12 @@ export const usePOSStore = create<POSStore>((set, get) => ({
         description: item.description || '',
         special_dish: item.special_dish || 0,
         tax_rate: 0,
-        addons: item.add_ons || [],
+        addons: item.add_ons?.map(addon => ({
+          id: addon.item,
+          name: addon.item_name,
+          price: addon.rate,
+          category: 'sides' as const
+        })) || [],
       }));
 
       set({ menuItems });
@@ -581,6 +589,12 @@ export const usePOSStore = create<POSStore>((set, get) => ({
     const uniqueId = generateUniqueId(item as OrderItem);
     const cartItem = get().activeOrders.find(orderItem => orderItem.uniqueId === uniqueId);
     return cartItem?.quantity || 0;
+  },
+
+  getAddonsForItem: (parentItem: string) => {
+    return get().activeOrders.filter(item => 
+      item.parent_item === parentItem && item.is_addon
+    );
   },
 
   loadTableOrder: async (table: string) => {

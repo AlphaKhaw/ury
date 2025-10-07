@@ -11,6 +11,7 @@ export interface MenuItem {
   recommended?: boolean;
   description?: string;
   special_dish?: 1 | 0;
+  add_ons?: Array<{ item: string; item_name: string; rate: number }>;
 }
 
 export interface GetMenuResponse {
