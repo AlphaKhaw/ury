@@ -84,23 +84,13 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
   }, [selectedItem]);
 
   
-  const addonDetails = Array.isArray(itemDoc?.custom_pos_add_on_items)
-    ? itemDoc.custom_pos_add_on_items
-        .map((entry: any) => {
-          const menuAddon = menuItems.find((menuItem: any) => menuItem.item === entry.item);
-          return menuAddon
-            ? {
-                id: menuAddon.item,
-                name: menuAddon.item_name,
-                price: Number(menuAddon.price)
-              }
-            : {
-                id: entry.item,
-                name: entry.item,
-                price: 0
-              };
-        })
-        .filter(Boolean)
+  // Use add-ons from the API response (selectedItem.addons) instead of fetching from Item document
+  const addonDetails = Array.isArray(selectedItem?.addons)
+    ? selectedItem.addons.map((addon: any) => ({
+        id: addon.id,
+        name: addon.name,
+        price: Number(addon.price)
+      }))
     : [];
 
   const variantDetails = Array.isArray(itemDoc?.custom_pos_item_variants)
@@ -131,6 +121,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
   const [isAddonLoading, setIsAddonLoading] = useState(false);
   const [addonError, setAddonError] = useState<string | null>(null);
 
+  // No need to fetch add-ons from Item document since they come from API response
   useEffect(() => {
     if (!selectedItem) {
       setAddonItemCodes([]);
@@ -138,26 +129,10 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
       setIsAddonLoading(false);
       return;
     }
-    setIsAddonLoading(true);
+    // Add-ons are already available in selectedItem.addons from API response
+    setIsAddonLoading(false);
     setAddonError(null);
-    db.getDoc('Item', selectedItem.item)
-      .then((doc: any) => {
-        if (Array.isArray(doc.custom_pos_add_on_items)) {
-          const codes = doc.custom_pos_add_on_items
-            .map((entry: any) => entry.item)
-            .filter(Boolean);
-          setAddonItemCodes(codes);
-        } else {
-          setAddonItemCodes([]);
-        }
-      })
-      .catch((err: any) => {
-        setAddonError('Failed to fetch add-ons');
-        setAddonItemCodes([]);
-      })
-      .finally(() => {
-        setIsAddonLoading(false);
-      });
+    setAddonItemCodes(selectedItem.addons?.map((addon: any) => addon.id) || []);
   }, [selectedItem]);
 
   // Initialize quantity and comments from cart if not in edit mode
