@@ -24,9 +24,15 @@ def getRestaurantMenu(pos_profile, room=None, order_type=None):
 
     pos_profile = frappe.get_doc("POS Profile", pos_profile)
 
-    cashier = any(
-        role.role in user_role for role in pos_profile.role_allowed_for_billing
-    )
+    # Check if role_allowed_for_billing field exists and has data
+    if hasattr(pos_profile, 'role_allowed_for_billing') and pos_profile.role_allowed_for_billing:
+        cashier = any(
+            role.role in user_role for role in pos_profile.role_allowed_for_billing
+        )
+    else:
+        # If field doesn't exist or is empty, allow all users with URY roles
+        ury_roles = ['URY Manager', 'URY Cashier', 'URY Captain', 'Administrator', 'System Manager']
+        cashier = any(role in user_role for role in ury_roles)
     branch_name = getBranch()
     restaurant = frappe.db.get_value("URY Restaurant", {"branch": branch_name}, "name")
     

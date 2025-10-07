@@ -14,8 +14,7 @@ const Footer = () => {
 
   const total = activeOrders.reduce((sum, item) => {
     const basePrice = item.selectedVariant?.price || item.price;
-    const addonsTotal = item.selectedAddons?.reduce((sum, addon) => sum + addon.price, 0) || 0;
-    return sum + (basePrice + addonsTotal) * item.quantity;
+    return sum + basePrice * item.quantity;
   }, 0);
 
   const navItems = [

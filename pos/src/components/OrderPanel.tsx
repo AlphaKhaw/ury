@@ -43,8 +43,7 @@ const OrderPanel = () => {
 
   const calculateItemTotal = (item: typeof activeOrders[0]) => {
     const basePrice = item.selectedVariant?.price || item.price;
-    const addonsTotal = item.selectedAddons?.reduce((sum, addon) => sum + addon.price, 0) || 0;
-    return (basePrice + addonsTotal) * item.quantity;
+    return basePrice * item.quantity;
   };
 
   const total = activeOrders.reduce(
@@ -101,7 +100,9 @@ const OrderPanel = () => {
           item_name: item.name,
           rate: item.selectedVariant?.price || item.price,
           qty: item.quantity,
-          comment: item.comment || undefined
+          comment: item.comment || undefined,
+          parent_item: item.parent_item || undefined,
+          is_addon: item.is_addon || false
         })),
         no_of_pax: 1,
         pos_profile: posProfile.name,
@@ -192,87 +193,186 @@ const OrderPanel = () => {
       ) : (
         <>
           <div className="flex-1 overflow-y-auto px-6">
-            {activeOrders.map((item) => (
-              <div
-                key={item.uniqueId}
-                className={cn(
-                  "flex flex-col py-4 border-b border-gray-100",
-                  isInteractionDisabled && "opacity-50"
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium text-gray-900 text-sm">{item.name}</h3>
-                    </div>
-                    {item.selectedVariant && (
-                      <p className="text-sm text-gray-600">{item.selectedVariant.name}</p>
-                    )}
-                    {item.selectedAddons && item.selectedAddons.length > 0 && (
-                      <div className="mt-2 ml-4 pl-2 border-l-2 border-gray-200">
-                        {item.selectedAddons.map((addon, index) => (
-                          <p key={index} className="text-sm text-gray-500 flex items-center">
-                            <span className="w-2 h-2 bg-gray-400 rounded-full mr-2 flex-shrink-0"></span>{addon.name}
-                          </p>
-                        ))}
+            {activeOrders
+              .filter(item => !item.is_addon) // Only show main items (non-addons)
+              .map((item) => {
+                const itemAddons = activeOrders.filter(addon => 
+                  addon.parent_item === item.id && addon.is_addon
+                );
+                
+                return (
+                  <div key={item.uniqueId}>
+                    {/* Main Item */}
+                    <div
+                      className={cn(
+                        "flex flex-col py-4 border-b border-gray-100",
+                        isInteractionDisabled && "opacity-50"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-medium text-gray-900 text-sm">{item.name}</h3>
+                          </div>
+                          {item.selectedVariant && (
+                            <p className="text-sm text-gray-600">{item.selectedVariant.name}</p>
+                          )}
+                          <p className="text-gray-600 text-sm">{formatCurrency(calculateItemTotal(item))}</p>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            onClick={() => handleEdit(item)}
+                            variant="ghost"
+                            size="icon"
+                            className="text-blue-600 hover:text-blue-700"
+                            title="Edit item"
+                            disabled={isInteractionDisabled}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              onClick={() => {
+                                const newQuantity = Math.max(0, item.quantity - 1);
+                                if (newQuantity === 0) {
+                                  removeFromOrder(item.uniqueId!);
+                                  // Also remove all add-ons for this item
+                                  itemAddons.forEach(addon => {
+                                    if (addon.uniqueId) {
+                                      removeFromOrder(addon.uniqueId);
+                                    }
+                                  });
+                                } else {
+                                  updateQuantity(item.uniqueId!, newQuantity);
+                                  // Update add-on quantities to match parent
+                                  itemAddons.forEach(addon => {
+                                    if (addon.uniqueId) {
+                                      updateQuantity(addon.uniqueId, newQuantity);
+                                    }
+                                  });
+                                }
+                              }}
+                              variant="outline"
+                              size="icon"
+                              className="w-8 h-8 rounded-full"
+                              disabled={isInteractionDisabled}
+                            >
+                              -
+                            </Button>
+                            <span className="w-6 text-center">{item.quantity}</span>
+                            <Button
+                              onClick={() => {
+                                updateQuantity(item.uniqueId!, item.quantity + 1);
+                                // Update add-on quantities to match parent
+                                itemAddons.forEach(addon => {
+                                  if (addon.uniqueId) {
+                                    updateQuantity(addon.uniqueId, item.quantity + 1);
+                                  }
+                                });
+                              }}
+                              variant="outline"
+                              size="icon"
+                              className="w-8 h-8 rounded-full"
+                              disabled={isInteractionDisabled}
+                            >
+                              +
+                            </Button>
+                          </div>
+                          
+                          <Button
+                            onClick={() => {
+                              removeFromOrder(item.uniqueId!);
+                              // Also remove all add-ons for this item
+                              itemAddons.forEach(addon => {
+                                if (addon.uniqueId) {
+                                  removeFromOrder(addon.uniqueId);
+                                }
+                              });
+                            }}
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-500 hover:text-red-600"
+                            disabled={isInteractionDisabled}
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </Button>
+                        </div>
                       </div>
-                    )}
-                    <p className="text-gray-600 text-sm">{formatCurrency(calculateItemTotal(item))}</p>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      onClick={() => handleEdit(item)}
-                      variant="ghost"
-                      size="icon"
-                      className="text-blue-600 hover:text-blue-700"
-                      title="Edit item"
-                      disabled={isInteractionDisabled}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        onClick={() => {
-                          const newQuantity = Math.max(0, item.quantity - 1);
-                          if (newQuantity === 0) {
-                            removeFromOrder(item.uniqueId!);
-                          } else {
-                            updateQuantity(item.uniqueId!, newQuantity);
-                          }
-                        }}
-                        variant="outline"
-                        size="icon"
-                        className="w-8 h-8 rounded-full"
-                        disabled={isInteractionDisabled}
-                      >
-                        -
-                      </Button>
-                      <span className="w-6 text-center">{item.quantity}</span>
-                      <Button
-                        onClick={() => updateQuantity(item.uniqueId!, item.quantity + 1)}
-                        variant="outline"
-                        size="icon"
-                        className="w-8 h-8 rounded-full"
-                        disabled={isInteractionDisabled}
-                      >
-                        +
-                      </Button>
                     </div>
-                    
-                    <Button
-                      onClick={() => removeFromOrder(item.uniqueId!)}
-                      variant="ghost"
-                      size="icon"
-                      className="text-red-500 hover:text-red-600"
-                      disabled={isInteractionDisabled}
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </Button>
+
+                    {/* Add-ons for this main item */}
+                    {itemAddons.map((addon) => (
+                      <div
+                        key={addon.uniqueId}
+                        className={cn(
+                          "flex items-center justify-between py-2 pl-6 bg-gray-50 border-b border-gray-100",
+                          isInteractionDisabled && "opacity-50"
+                        )}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center">
+                            <span className="text-gray-400 mr-2">└─</span>
+                            <h4 className="text-sm text-gray-600">{addon.name}</h4>
+                          </div>
+                          <p className="text-xs text-gray-500 ml-4">+{formatCurrency(addon.price)}</p>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            onClick={() => handleEdit(addon)}
+                            variant="ghost"
+                            size="icon"
+                            className="text-blue-600 hover:text-blue-700"
+                            title="Edit add-on"
+                            disabled={isInteractionDisabled}
+                          >
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                          <div className="flex items-center space-x-1">
+                            <Button
+                              onClick={() => {
+                                const newQuantity = Math.max(0, addon.quantity - 1);
+                                if (newQuantity === 0) {
+                                  removeFromOrder(addon.uniqueId!);
+                                } else {
+                                  updateQuantity(addon.uniqueId!, newQuantity);
+                                }
+                              }}
+                              variant="outline"
+                              size="icon"
+                              className="w-6 h-6 rounded-full text-xs"
+                              disabled={isInteractionDisabled}
+                            >
+                              -
+                            </Button>
+                            <span className="w-4 text-center text-xs">{addon.quantity}</span>
+                            <Button
+                              onClick={() => updateQuantity(addon.uniqueId!, addon.quantity + 1)}
+                              variant="outline"
+                              size="icon"
+                              className="w-6 h-6 rounded-full text-xs"
+                              disabled={isInteractionDisabled}
+                            >
+                              +
+                            </Button>
+                          </div>
+                          
+                          <Button
+                            onClick={() => removeFromOrder(addon.uniqueId!)}
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-500 hover:text-red-600"
+                            disabled={isInteractionDisabled}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              </div>
-            ))}
+                );
+              })}
             {activeOrders.length > 0 && (
               <Button
                 onClick={clearOrder}
