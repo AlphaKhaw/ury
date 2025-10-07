@@ -209,10 +209,10 @@ const OrderPanel = () => {
                       <p className="text-sm text-gray-600">{item.selectedVariant.name}</p>
                     )}
                     {item.selectedAddons && item.selectedAddons.length > 0 && (
-                      <div className="mt-1">
+                      <div className="mt-2 ml-4 pl-2 border-l-2 border-gray-200">
                         {item.selectedAddons.map((addon, index) => (
-                          <p key={index} className="text-sm text-gray-500 ml-2">
-                            └─ {addon.name}
+                          <p key={index} className="text-sm text-gray-500 flex items-center">
+                            <span className="w-2 h-2 bg-gray-400 rounded-full mr-2 flex-shrink-0"></span>{addon.name}
                           </p>
                         ))}
                       </div>
