@@ -416,51 +416,57 @@ export default function Orders() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Items</h3>
                 <div className="space-y-3">
                   {(() => {
-                    // Group items and their add-ons properly
-                    const mainItems = selectedOrderItems.filter(item => !item.is_addon);
-                    const addonItems = selectedOrderItems.filter(item => item.is_addon);
+                    // Create a proper grouping of items and their add-ons
+                    const groupedItems = [];
+                    const processedAddons = new Set();
                     
-                    return mainItems.map((item, index) => {
-                      // Find add-ons that belong to this specific main item instance
-                      // We'll use the order in the list to determine which add-ons belong to which main item
-                      const itemAddons = addonItems.filter(addon => {
-                        // Match by parent_item and ensure it's the right instance
-                        if (addon.parent_item !== item.item_code) return false;
+                    // First, process all main items
+                    selectedOrderItems.forEach((item, index) => {
+                      if (!item.is_addon) {
+                        // Find all add-ons that belong to this main item
+                        const itemAddons = selectedOrderItems.filter((addon, addonIndex) => {
+                          return addon.is_addon && 
+                                 addon.parent_item === item.item_code &&
+                                 addonIndex > index &&
+                                 !processedAddons.has(addonIndex);
+                        });
                         
-                        // Find the position of this main item in the original list
-                        const mainItemIndex = selectedOrderItems.findIndex(originalItem => 
-                          originalItem === item
-                        );
+                        // Mark these add-ons as processed
+                        itemAddons.forEach((_, addonIndex) => {
+                          const originalIndex = selectedOrderItems.findIndex(originalItem => originalItem === itemAddons[addonIndex]);
+                          processedAddons.add(originalIndex);
+                        });
                         
-                        // Find the position of this addon in the original list
-                        const addonIndex = selectedOrderItems.findIndex(originalItem => 
-                          originalItem === addon
-                        );
-                        
-                        // Addon should come after the main item
-                        return addonIndex > mainItemIndex;
-                      });
+                        groupedItems.push({
+                          mainItem: item,
+                          addons: itemAddons
+                        });
+                      }
+                    });
+                    
+                    return groupedItems.map((group, index) => {
+                      const { mainItem, addons } = group;
                       
                       return (
                         <div key={index}>
                           {/* Main Item */}
                           <div className="flex justify-between items-start py-2 border-b border-gray-100">
                             <div className="flex-1">
-                              <p className="text-sm font-medium text-gray-900">{item.item_name}</p>
-                              <p className="text-xs text-gray-500">Qty: {item.qty}</p>
-                              {item.comment && (
-                                <p className="text-xs text-blue-600 italic">Note: {item.comment}</p>
+                              <p className="text-sm font-medium text-gray-900">{mainItem.item_name}</p>
+                              <p className="text-xs text-gray-500">Qty: {mainItem.qty}</p>
+                              {mainItem.comment && (
+                                <p className="text-xs text-blue-600 italic">Note: {mainItem.comment}</p>
                               )}
                             </div>
                             <div className="text-right">
                               <p className="text-sm font-semibold text-gray-900">
-                                {formatCurrency(item.amount)}
+                                {formatCurrency(mainItem.amount)}
                               </p>
                             </div>
                           </div>
 
                           {/* Add-ons for this main item */}
-                          {itemAddons.map((addon, addonIndex) => (
+                          {addons.map((addon, addonIndex) => (
                             <div
                               key={`${index}-${addonIndex}`}
                               className="flex justify-between items-start py-2 pl-6 bg-gray-50 border-b border-gray-100"
