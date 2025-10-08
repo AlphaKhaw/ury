@@ -260,26 +260,38 @@ def sync_order(
             fields=["price_list_rate"],
         )
 
-        if not item_prices:
-            frappe.throw(_("No item price found for Item: {0} in Price List: {1}. Please check the price list settings.").format(item.item_code, price_list))
-
+        # Use the rate from frontend if provided, otherwise use price list rate
+        frontend_rate = d.get("rate")
+        if frontend_rate is not None:
+            # Use the rate from frontend (including 0 for free items)
+            item_rate = frontend_rate
+            price_list_rate = item_prices[0].price_list_rate if item_prices else 0
         else:
-            invoice.append(
-                "items",
-                dict(
-                    item_code=d.get("item"),
-                    item_name=d.get("item_name"),
-                    qty=d.get("qty"),
-                    **({"custom_course": course} if course else {}),
-                    comment=d.get("comment"),
-                    rate = item_prices[0].price_list_rate,
-                    price_list_rate = item_prices[0].price_list_rate,
-                    base_price_list_rate = item_prices[0].price_list_rate,
-                    cost_center = frappe.db.get_value(
-                        "POS Profile", pos_profile, "cost_center"
-                        ),
-                ),
-            )
+            # Fallback to price list rate if no frontend rate provided
+            if not item_prices:
+                frappe.throw(_("No item price found for Item: {0} in Price List: {1}. Please check the price list settings.").format(d.get("item"), price_list))
+            item_rate = item_prices[0].price_list_rate
+            price_list_rate = item_prices[0].price_list_rate
+
+        invoice.append(
+            "items",
+            dict(
+                item_code=d.get("item"),
+                item_name=d.get("item_name"),
+                qty=d.get("qty"),
+                **({"custom_course": course} if course else {}),
+                comment=d.get("comment"),
+                rate = item_rate,
+                price_list_rate = price_list_rate,
+                base_price_list_rate = price_list_rate,
+                cost_center = frappe.db.get_value(
+                    "POS Profile", pos_profile, "cost_center"
+                    ),
+                # Add parent-child relationship fields
+                **({"parent_item": d.get("parent_item")} if d.get("parent_item") else {}),
+                **({"is_addon": d.get("is_addon")} if d.get("is_addon") is not None else {}),
+            ),
+        )
 
     try:
         invoice.save()

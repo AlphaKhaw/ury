@@ -415,19 +415,57 @@ export default function Orders() {
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Items</h3>
                 <div className="space-y-3">
-                  {selectedOrderItems.map((item, index) => (
-                    <div key={index} className="flex justify-between items-start py-2 border-b border-gray-100">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{item.item_name}</p>
-                        <p className="text-xs text-gray-500">Qty: {item.qty}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {formatCurrency(item.amount)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                  {selectedOrderItems
+                    .filter(item => !item.is_addon) // Only show main items (non-addons)
+                    .map((item, index) => {
+                      const itemAddons = selectedOrderItems.filter(addon => 
+                        addon.parent_item === item.item_code && addon.is_addon
+                      );
+                      
+                      return (
+                        <div key={index}>
+                          {/* Main Item */}
+                          <div className="flex justify-between items-start py-2 border-b border-gray-100">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">{item.item_name}</p>
+                              <p className="text-xs text-gray-500">Qty: {item.qty}</p>
+                              {item.comment && (
+                                <p className="text-xs text-blue-600 italic">Note: {item.comment}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {formatCurrency(item.amount)}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Add-ons for this main item */}
+                          {itemAddons.map((addon, addonIndex) => (
+                            <div
+                              key={`${index}-${addonIndex}`}
+                              className="flex justify-between items-start py-2 pl-6 bg-gray-50 border-b border-gray-100"
+                            >
+                              <div className="flex-1">
+                                <div className="flex items-center">
+                                  <span className="text-gray-400 mr-2">└─</span>
+                                  <p className="text-sm text-gray-600">{addon.item_name}</p>
+                                </div>
+                                <p className="text-xs text-gray-500 ml-4">Qty: {addon.qty}</p>
+                                {addon.comment && (
+                                  <p className="text-xs text-blue-600 italic ml-4">Note: {addon.comment}</p>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm text-gray-600">
+                                  +{formatCurrency(addon.amount)}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
 

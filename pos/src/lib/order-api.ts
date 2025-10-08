@@ -64,6 +64,9 @@ export interface SyncOrderRequest {
     item_name: string;
     rate: number;
     qty: number;
+    comment?: string;
+    parent_item?: string;
+    is_addon?: boolean;
   }>;
   no_of_pax: number;
   mode_of_payment?: string;

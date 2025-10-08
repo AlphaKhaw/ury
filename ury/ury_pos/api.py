@@ -130,7 +130,7 @@ def getBranch():
     if user == "Administrator":
         # For Administrator, return the default branch
         return "75@Hatchere"
-    elif user != "Administrator":
+    else:
         sql_query = """
             SELECT b.branch
             FROM `tabURY User` AS a
@@ -144,6 +144,7 @@ def getBranch():
         branch_name = branch_array[0].get("branch")
 
         return branch_name
+
 def getBranchRoom():
     user = frappe.session.user
     if user != "Administrator":
@@ -585,11 +586,21 @@ def getPosInvoiceItems(invoice):
         item_name = items.item_name
         qty = items.qty
         amount = items.rate
+        # Get parent-child relationship fields
+        parent_item = getattr(items, 'parent_item', None)
+        is_addon = getattr(items, 'is_addon', False)
+        item_code = getattr(items, 'item_code', None)
+        comment = getattr(items, 'comment', None)
+        
         itemDetails.append(
             {
                 "item_name": item_name,
                 "qty": qty,
                 "amount": amount,
+                "item_code": item_code,
+                "parent_item": parent_item,
+                "is_addon": is_addon,
+                "comment": comment,
             }
         )
     taxDetail = orderdItems.taxes
