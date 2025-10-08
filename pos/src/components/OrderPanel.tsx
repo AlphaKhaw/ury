@@ -313,7 +313,10 @@ const OrderPanel = () => {
                         <div className="flex-1">
                           <div className="flex items-center">
                             <span className="text-gray-400 mr-2">└─</span>
-                            <h4 className="text-sm text-gray-600">{addon.name}</h4>
+                            <div>
+                              <h4 className="text-sm text-gray-600">{addon.name}</h4>
+                              <p className="text-xs text-gray-500 ml-4">for {item.name}</p>
+                            </div>
                           </div>
                           <p className="text-xs text-gray-500 ml-4">+{formatCurrency(addon.price)}</p>
                         </div>

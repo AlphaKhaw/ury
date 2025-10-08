@@ -17,6 +17,7 @@ export interface POSInvoice {
   posting_date: string;
   rounded_total: number;
   order_type: OrderType;
+  custom_ury_order_number?: string;
 }
 
 export interface POSInvoiceItem {

@@ -474,7 +474,10 @@ export default function Orders() {
                               <div className="flex-1">
                                 <div className="flex items-center">
                                   <span className="text-gray-400 mr-2">└─</span>
-                                  <p className="text-sm text-gray-600">{addon.item_name}</p>
+                                  <div>
+                                    <p className="text-sm text-gray-600">{addon.item_name}</p>
+                                    <p className="text-xs text-gray-500 ml-4">for {mainItem.item_name}</p>
+                                  </div>
                                 </div>
                                 <p className="text-xs text-gray-500 ml-4">Qty: {addon.qty}</p>
                                 {addon.comment && (
@@ -494,6 +497,23 @@ export default function Orders() {
                   })()}
                 </div>
               </div>
+
+              {/* KOT Information */}
+              {selectedOrder && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">KOT Information</h3>
+                  <div className="space-y-2">
+                    {selectedOrder.custom_ury_order_number && (
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-sm text-gray-600">Order Number</span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {selectedOrder.custom_ury_order_number}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Taxes */}
               {selectedOrderTaxes.length > 0 && (
