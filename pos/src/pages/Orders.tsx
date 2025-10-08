@@ -415,12 +415,31 @@ export default function Orders() {
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Items</h3>
                 <div className="space-y-3">
-                  {selectedOrderItems
-                    .filter(item => !item.is_addon) // Only show main items (non-addons)
-                    .map((item, index) => {
-                      const itemAddons = selectedOrderItems.filter(addon => 
-                        addon.parent_item === item.item_code && addon.is_addon
-                      );
+                  {(() => {
+                    // Group items and their add-ons properly
+                    const mainItems = selectedOrderItems.filter(item => !item.is_addon);
+                    const addonItems = selectedOrderItems.filter(item => item.is_addon);
+                    
+                    return mainItems.map((item, index) => {
+                      // Find add-ons that belong to this specific main item instance
+                      // We'll use the order in the list to determine which add-ons belong to which main item
+                      const itemAddons = addonItems.filter(addon => {
+                        // Match by parent_item and ensure it's the right instance
+                        if (addon.parent_item !== item.item_code) return false;
+                        
+                        // Find the position of this main item in the original list
+                        const mainItemIndex = selectedOrderItems.findIndex(originalItem => 
+                          originalItem === item
+                        );
+                        
+                        // Find the position of this addon in the original list
+                        const addonIndex = selectedOrderItems.findIndex(originalItem => 
+                          originalItem === addon
+                        );
+                        
+                        // Addon should come after the main item
+                        return addonIndex > mainItemIndex;
+                      });
                       
                       return (
                         <div key={index}>
@@ -465,7 +484,8 @@ export default function Orders() {
                           ))}
                         </div>
                       );
-                    })}
+                    });
+                  })()}
                 </div>
               </div>
 
