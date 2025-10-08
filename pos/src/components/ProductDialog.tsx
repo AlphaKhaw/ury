@@ -239,7 +239,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
             ...menuAddon,
             quantity: numericQuantity,
             price: addon.price,
-            parent_item: selectedItem.id, // Link to parent item
+            parent_item: editMode && itemToReplace?.uniqueId ? itemToReplace.uniqueId : selectedItem.id, // Link to parent item uniqueId if available, else to parent item id
             is_addon: true // Mark as add-on
           }
         : {
@@ -254,7 +254,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
             description: '',
             special_dish: 0 as 0 | 1,
             tax_rate: 0,
-            parent_item: selectedItem.id, // Link to parent item
+            parent_item: editMode && itemToReplace?.uniqueId ? itemToReplace.uniqueId : selectedItem.id, // Link to parent item uniqueId if available, else to parent item id
             is_addon: true // Mark as add-on
           } as OrderItem;
       addToOrder(addonOrderItem);

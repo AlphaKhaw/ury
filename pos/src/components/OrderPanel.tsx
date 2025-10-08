@@ -197,7 +197,7 @@ const OrderPanel = () => {
               .filter(item => !item.is_addon) // Only show main items (non-addons)
               .map((item) => {
                 const itemAddons = activeOrders.filter(addon => 
-                  addon.parent_item === item.id && addon.is_addon
+                  (addon.parent_item === item.id || addon.parent_item === item.uniqueId) && addon.is_addon
                 );
                 
                 return (

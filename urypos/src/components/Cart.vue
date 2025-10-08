@@ -445,9 +445,17 @@ export default {
   },
   methods: {
     getAddonsForItem(parentItem) {
-      return this.menu.cart.filter(item => 
-        item.parent_item === parentItem && item.is_addon
-      );
+      // First check if parentItem has unique_id (new system)
+      if (parentItem.unique_id) {
+        return this.menu.cart.filter(item => 
+          item.parent_item === parentItem.unique_id && item.is_addon
+        );
+      } else {
+        // Fallback to old system for backward compatibility
+        return this.menu.cart.filter(item => 
+          item.parent_item === parentItem.item && item.is_addon
+        );
+      }
     }
   },
   mounted() {
