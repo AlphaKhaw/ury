@@ -24,15 +24,9 @@ def getRestaurantMenu(pos_profile, room=None, order_type=None):
 
     pos_profile = frappe.get_doc("POS Profile", pos_profile)
 
-    # Check if role_allowed_for_billing field exists and has data
-    if hasattr(pos_profile, 'role_allowed_for_billing') and pos_profile.role_allowed_for_billing:
-        cashier = any(
-            role.role in user_role for role in pos_profile.role_allowed_for_billing
-        )
-    else:
-        # If field doesn't exist or is empty, allow all users with URY roles
-        ury_roles = ['URY Manager', 'URY Cashier', 'URY Captain', 'Administrator', 'System Manager']
-        cashier = any(role in user_role for role in ury_roles)
+    cashier = any(
+        role.role in user_role for role in pos_profile.role_allowed_for_billing
+    )
     branch_name = getBranch()
     restaurant = frappe.db.get_value("URY Restaurant", {"branch": branch_name}, "name")
     
@@ -131,10 +125,12 @@ def getRestaurantMenu(pos_profile, room=None, order_type=None):
     }
 
 @frappe.whitelist()
-@frappe.whitelist()
 def getBranch():
     user = frappe.session.user
-    if user != "Administrator":
+    if user == "Administrator":
+        # For Administrator, return the default branch
+        return "75@Hatchere"
+    elif user != "Administrator":
         sql_query = """
             SELECT b.branch
             FROM `tabURY User` AS a
@@ -148,9 +144,6 @@ def getBranch():
         branch_name = branch_array[0].get("branch")
 
         return branch_name
-    else:
-        # Return default branch for Administrator
-        return "75@Hatchere"
 def getBranchRoom():
     user = frappe.session.user
     if user != "Administrator":
