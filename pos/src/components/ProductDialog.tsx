@@ -81,19 +81,19 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
       .finally(() => {
         setIsItemLoading(false);
       });
-  }, [selectedItem]);
+  }, [selectedItem?.item]); // Changed dependency to only depend on the item ID
 
   
   // Use add-ons from the API response (selectedItem.addons) instead of fetching from Item document
-  const addonDetails = Array.isArray(selectedItem?.addons)
+  const addonDetails = React.useMemo(() => Array.isArray(selectedItem?.addons)
     ? selectedItem.addons.map((addon: any) => ({
         id: addon.id,
         name: addon.name,
         price: Number(addon.price)
       }))
-    : [];
+    : [], [selectedItem?.addons]);
 
-  const variantDetails = Array.isArray(itemDoc?.custom_pos_item_variants)
+  const variantDetails = React.useMemo(() => Array.isArray(itemDoc?.custom_pos_item_variants)
     ? itemDoc.custom_pos_item_variants
         .map((entry: any) => {
           const menuVariant = menuItems.find((menuItem: any) => menuItem.item === entry.item);
@@ -110,7 +110,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
               };
         })
         .filter(Boolean)
-    : [];
+    : [], [itemDoc?.custom_pos_item_variants, menuItems]);
 
   const [selectedAddons, setSelectedAddons] = useState<Array<{ id: string; name: string; price: number }>>([]);
   const [quantity, setQuantity] = useState<string>(editMode ? initialQuantity?.toString() || '0' : '0');
@@ -133,7 +133,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
     setIsAddonLoading(false);
     setAddonError(null);
     setAddonItemCodes(selectedItem.addons?.map((addon: any) => addon.id) || []);
-  }, [selectedItem]);
+  }, [selectedItem?.item]); // Changed dependency to only depend on the item ID
 
   // Initialize quantity, comments, and addons from cart if in edit mode
   useEffect(() => {
@@ -152,11 +152,11 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
         setQuantity(existingCartItem.quantity?.toString() || '0');
         setComments(existingCartItem.comment || '');
       } else {
-        const cartQuantity = getItemQuantityFromCart(selectedItem);
+        const cartQuantity = usePOSStore.getState().getItemQuantityFromCart(selectedItem);
         setQuantity(cartQuantity.toString());
       }
     }
-  }, [selectedItem, editMode, getItemQuantityFromCart, existingCartItem, itemToReplace, initialAddons]);
+  }, [selectedItem, editMode, itemToReplace, initialAddons, existingCartItem?.quantity, existingCartItem?.comment]);
 
 
 
@@ -165,8 +165,8 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
   // Always get price from menuItems for the main item
   const basePrice = selectedItem?.price ? Number(selectedItem.price) : 0;
   const numericQuantity = quantity === '' ? 0 : parseInt(quantity, 10);
-  const addonsTotal = selectedAddons.reduce((sum, addon) => sum + addon.price, 0);
-  const total = (basePrice + addonsTotal) * numericQuantity;
+  const addonsTotal = React.useMemo(() => selectedAddons.reduce((sum, addon) => sum + addon.price, 0), [selectedAddons]);
+  const total = React.useMemo(() => (basePrice + addonsTotal) * numericQuantity, [basePrice, addonsTotal, numericQuantity]);
 
   const handleQuantityChange = (value: string) => {
     // Allow empty string or numbers
@@ -343,7 +343,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
   };
 
   return (
-    <Dialog open={true} onOpenChange={handleClose}>
+    <Dialog open={!!selectedItem} onOpenChange={handleClose}>
       <DialogContent 
         ref={dialogRef}
         variant="xlarge"
