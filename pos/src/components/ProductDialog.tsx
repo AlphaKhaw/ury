@@ -254,6 +254,13 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
       };
       mainItemUniqueId = await addToOrder(orderItem);
 
+      // If main item failed to add, don't add add-ons
+      if (!mainItemUniqueId) {
+        console.error("Failed to add main item");
+        handleClose();
+        return;
+      }
+
       // Add each selected add-on as a separate cart line, linking to the new uniqueId
       for (const addon of selectedAddons) {
         // Find the full menu item details for the add-on
@@ -296,6 +303,13 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
       };
       // Add main item first to get its uniqueId
       mainItemUniqueId = await addToOrder(orderItem);
+
+      // If main item failed to add, don't add add-ons
+      if (!mainItemUniqueId) {
+        console.error("Failed to add main item");
+        handleClose();
+        return;
+      }
 
       // Add each selected add-on as a separate cart line using the main item's uniqueId
       for (const addon of selectedAddons) {
