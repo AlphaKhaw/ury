@@ -158,33 +158,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
     }
   }, [selectedItem, editMode, getItemQuantityFromCart, existingCartItem, itemToReplace, initialAddons]);
 
-  // Handle click outside to close dialog
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dialogRef.current && !dialogRef.current.contains(event.target as Node)) {
-        handleClose();
-      }
-    };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // Handle escape key to close dialog
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        handleClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, []);
 
   if (!selectedItem) return null;
 
