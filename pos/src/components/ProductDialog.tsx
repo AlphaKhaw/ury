@@ -139,15 +139,17 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
   useEffect(() => {
     if (editMode && itemToReplace) {
       // Set quantity from the item being replaced
-      setQuantity(itemToReplace.quantity.toString());
+      setQuantity(itemToReplace.quantity?.toString() || '0');
       // Set comments from the item being replaced
       setComments(itemToReplace.comment || '');
       // Set selected addons - prioritize initialAddons if provided, otherwise use itemToReplace.selectedAddons
-      const addonsToUse = initialAddons && initialAddons.length > 0 ? initialAddons : (itemToReplace.selectedAddons || []);
-      setSelectedAddons(addonsToUse);
+      const addonsToUse = (initialAddons && initialAddons.length > 0) 
+        ? [...initialAddons] 
+        : (itemToReplace.selectedAddons || []);
+      setSelectedAddons([...addonsToUse]);
     } else if (!editMode && selectedItem) {
       if (existingCartItem) {
-        setQuantity(existingCartItem.quantity.toString());
+        setQuantity(existingCartItem.quantity?.toString() || '0');
         setComments(existingCartItem.comment || '');
       } else {
         const cartQuantity = getItemQuantityFromCart(selectedItem);
