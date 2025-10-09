@@ -81,19 +81,19 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
       .finally(() => {
         setIsItemLoading(false);
       });
-  }, [selectedItem?.item]); // Changed dependency to only depend on the item ID
+  }, [selectedItem]);
 
   
   // Use add-ons from the API response (selectedItem.addons) instead of fetching from Item document
-  const addonDetails = React.useMemo(() => Array.isArray(selectedItem?.addons)
+  const addonDetails = Array.isArray(selectedItem?.addons)
     ? selectedItem.addons.map((addon: any) => ({
         id: addon.id,
         name: addon.name,
         price: Number(addon.price)
       }))
-    : [], [selectedItem?.addons]);
+    : [];
 
-  const variantDetails = React.useMemo(() => Array.isArray(itemDoc?.custom_pos_item_variants)
+  const variantDetails = Array.isArray(itemDoc?.custom_pos_item_variants)
     ? itemDoc.custom_pos_item_variants
         .map((entry: any) => {
           const menuVariant = menuItems.find((menuItem: any) => menuItem.item === entry.item);
@@ -110,7 +110,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
               };
         })
         .filter(Boolean)
-    : [], [itemDoc?.custom_pos_item_variants, menuItems]);
+    : [];
 
   const [selectedAddons, setSelectedAddons] = useState<Array<{ id: string; name: string; price: number }>>([]);
   const [quantity, setQuantity] = useState<string>(editMode ? initialQuantity?.toString() || '0' : '0');
@@ -133,40 +133,56 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
     setIsAddonLoading(false);
     setAddonError(null);
     setAddonItemCodes(selectedItem.addons?.map((addon: any) => addon.id) || []);
-  }, [selectedItem?.item]); // Changed dependency to only depend on the item ID
+  }, [selectedItem]);
 
-  // Initialize quantity, comments, and addons from cart if in edit mode
+  // Initialize quantity and comments from cart if not in edit mode
   useEffect(() => {
-    if (editMode && itemToReplace) {
-      // Set quantity from the item being replaced
-      setQuantity(itemToReplace.quantity?.toString() || '0');
-      // Set comments from the item being replaced
-      setComments(itemToReplace.comment || '');
-      // Set selected addons - prioritize initialAddons if provided, otherwise use itemToReplace.selectedAddons
-      const addonsToUse = (initialAddons && initialAddons.length > 0) 
-        ? [...initialAddons] 
-        : (itemToReplace.selectedAddons || []);
-      setSelectedAddons([...addonsToUse]);
-    } else if (!editMode && selectedItem) {
+    if (!editMode && selectedItem) {
       if (existingCartItem) {
-        setQuantity(existingCartItem.quantity?.toString() || '0');
+        setQuantity(existingCartItem.quantity.toString());
         setComments(existingCartItem.comment || '');
       } else {
-        const cartQuantity = usePOSStore.getState().getItemQuantityFromCart(selectedItem);
+        const cartQuantity = getItemQuantityFromCart(selectedItem);
         setQuantity(cartQuantity.toString());
       }
     }
-  }, [selectedItem, editMode, itemToReplace, initialAddons, existingCartItem?.quantity, existingCartItem?.comment]);
+  }, [selectedItem, editMode, getItemQuantityFromCart, existingCartItem]);
 
+  // Handle click outside to close dialog
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dialogRef.current && !dialogRef.current.contains(event.target as Node)) {
+        handleClose();
+      }
+    };
 
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Handle escape key to close dialog
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
 
   if (!selectedItem) return null;
 
   // Always get price from menuItems for the main item
   const basePrice = selectedItem?.price ? Number(selectedItem.price) : 0;
   const numericQuantity = quantity === '' ? 0 : parseInt(quantity, 10);
-  const addonsTotal = React.useMemo(() => selectedAddons.reduce((sum, addon) => sum + addon.price, 0), [selectedAddons]);
-  const total = React.useMemo(() => (basePrice + addonsTotal) * numericQuantity, [basePrice, addonsTotal, numericQuantity]);
+  const addonsTotal = selectedAddons.reduce((sum, addon) => sum + addon.price, 0);
+  const total = (basePrice + addonsTotal) * numericQuantity;
 
   const handleQuantityChange = (value: string) => {
     // Allow empty string or numbers
@@ -195,128 +211,54 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
     }
   };
 
-  const handleAddToOrder = async () => {
+  const handleAddToOrder = () => {
     const numericQuantity = typeof quantity === 'string' ? parseInt(quantity, 10) : quantity;
     if (isNaN(numericQuantity) || numericQuantity === 0) {
       return; // Don't add to order if quantity is 0 or invalid
     }
 
     if (editMode && itemToReplace?.uniqueId) {
-      // Remove the old item and all its add-ons first
+      // Remove the old item first
       removeFromOrder(itemToReplace.uniqueId);
-      
-      // Also remove any existing add-ons for this item
-      const allOrders = usePOSStore.getState().activeOrders;
-      const existingAddons = allOrders.filter(item => 
-        item.parent_item === itemToReplace.uniqueId && item.is_addon
-      );
-      existingAddons.forEach(addon => {
-        if (addon.uniqueId) {
-          removeFromOrder(addon.uniqueId);
-        }
-      });
     }
 
-    let mainItemUniqueId: string | null = null;
+    // Add main item as a cart line
+    const orderItem: OrderItem = {
+      ...selectedItem,
+      quantity: numericQuantity,
+      price: basePrice
+    };
+    addToOrder(orderItem);
 
-    if (editMode && itemToReplace?.uniqueId) {
-      // In edit mode, the new item will get a new uniqueId (because we removed the old one)
-      // Use the same instanceId as the original to maintain consistency for future operations
-      const orderItem: OrderItem = {
-        ...selectedItem,
-        quantity: numericQuantity,
-        price: basePrice,
-        instanceId: itemToReplace.instanceId // Preserve the original instanceId
-      };
-      mainItemUniqueId = await addToOrder(orderItem);
-
-      // If main item failed to add, don't add add-ons
-      if (!mainItemUniqueId) {
-        console.error("Failed to add main item");
-        handleClose();
-        return;
-      }
-
-      // Add each selected add-on as a separate cart line, linking to the new uniqueId
-      for (const addon of selectedAddons) {
-        // Find the full menu item details for the add-on
-        const menuAddon = menuItems.find(item => item.item === addon.id);
-        const addonOrderItem: OrderItem = menuAddon
-          ? {
-              ...menuAddon,
-              quantity: numericQuantity,
-              price: addon.price,
-              parent_item: mainItemUniqueId, // Link to the newly created main item's uniqueId
-              is_addon: true // Mark as add-on
-            }
-          : {
-              id: addon.id,
-              name: addon.name,
-              price: addon.price,
-              quantity: numericQuantity,
-              image: null,
-              item: addon.id,
-              item_name: addon.name,
-              course: '',
-              description: '',
-              special_dish: 0 as 0 | 1,
-              tax_rate: 0,
-              parent_item: mainItemUniqueId, // Link to the newly created main item's uniqueId
-              is_addon: true // Mark as add-on
-            } as OrderItem;
-        await addToOrder(addonOrderItem);
-      }
-    } else {
-      // In non-edit mode, generate a unique instanceId for this particular instance of the item
-      const instanceId = `instance-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Add the main item with its unique instanceId
-      const orderItem: OrderItem = {
-        ...selectedItem,
-        quantity: numericQuantity,
-        price: basePrice,
-        instanceId // Add unique instanceId to distinguish this instance
-      };
-      // Add main item first to get its uniqueId
-      mainItemUniqueId = await addToOrder(orderItem);
-
-      // If main item failed to add, don't add add-ons
-      if (!mainItemUniqueId) {
-        console.error("Failed to add main item");
-        handleClose();
-        return;
-      }
-
-      // Add each selected add-on as a separate cart line using the main item's uniqueId
-      for (const addon of selectedAddons) {
-        // Find the full menu item details for the add-on
-        const menuAddon = menuItems.find(item => item.item === addon.id);
-        const addonOrderItem: OrderItem = menuAddon
-          ? {
-              ...menuAddon,
-              quantity: numericQuantity,
-              price: addon.price,
-              parent_item: mainItemUniqueId, // Link to the main item's uniqueId
-              is_addon: true // Mark as add-on
-            }
-          : {
-              id: addon.id,
-              name: addon.name,
-              price: addon.price,
-              quantity: numericQuantity,
-              image: null,
-              item: addon.id,
-              item_name: addon.name,
-              course: '',
-              description: '',
-              special_dish: 0 as 0 | 1,
-              tax_rate: 0,
-              parent_item: mainItemUniqueId, // Link to the main item's uniqueId
-              is_addon: true // Mark as add-on
-            } as OrderItem;
-        await addToOrder(addonOrderItem);
-      }
-    }
+    // Add each selected add-on as a separate cart line
+    selectedAddons.forEach(addon => {
+      // Find the full menu item details for the add-on
+      const menuAddon = menuItems.find(item => item.item === addon.id);
+      const addonOrderItem: OrderItem = menuAddon
+        ? {
+            ...menuAddon,
+            quantity: numericQuantity,
+            price: addon.price,
+            parent_item: editMode && itemToReplace?.uniqueId ? itemToReplace.uniqueId : selectedItem.id, // Link to parent item uniqueId if available, else to parent item id
+            is_addon: true // Mark as add-on
+          }
+        : {
+            id: addon.id,
+            name: addon.name,
+            price: addon.price,
+            quantity: numericQuantity,
+            image: null,
+            item: addon.id,
+            item_name: addon.name,
+            course: '',
+            description: '',
+            special_dish: 0 as 0 | 1,
+            tax_rate: 0,
+            parent_item: editMode && itemToReplace?.uniqueId ? itemToReplace.uniqueId : selectedItem.id, // Link to parent item uniqueId if available, else to parent item id
+            is_addon: true // Mark as add-on
+          } as OrderItem;
+      addToOrder(addonOrderItem);
+    });
 
     handleClose();
   };
@@ -343,7 +285,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
   };
 
   return (
-    <Dialog open={!!selectedItem} onOpenChange={handleClose}>
+    <Dialog open={true} onOpenChange={handleClose}>
       <DialogContent 
         ref={dialogRef}
         variant="xlarge"
