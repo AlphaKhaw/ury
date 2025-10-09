@@ -53,6 +53,7 @@ export interface OrderItem extends MenuItem {
   comment?: string;
   parent_item?: string;
   is_addon?: boolean;
+  instanceId?: string; // Added to distinguish separate instances of the same item configuration
 }
 
 export interface PaymentMode {
@@ -124,7 +125,7 @@ interface POSStore extends POSState {
   fetchAggregatorMenu: (aggregator: string) => Promise<void>;
   fetchCategories: () => Promise<void>;
   fetchPaymentModes: () => Promise<void>;
-  addToOrder: (item: OrderItem) => Promise<void>;
+  addToOrder: (item: OrderItem) => Promise<string | null>;
   removeFromOrder: (uniqueId: string) => Promise<void>;
   updateQuantity: (uniqueId: string, quantity: number) => Promise<void>;
   clearOrder: () => Promise<void>;
@@ -162,7 +163,9 @@ interface POSStore extends POSState {
 const generateUniqueId = (item: OrderItem): string => {
   const variantId = item.selectedVariant?.id || 'default';
   const addonIds = item.selectedAddons?.map(addon => addon.id).sort().join('-') || 'no-addons';
-  return `${item.id}-${variantId}-${addonIds}`;
+  // Include an instanceId to distinguish separate instances of the same item configuration
+  const instanceId = item.instanceId || 'default';
+  return `${item.id}-${variantId}-${addonIds}-${instanceId}`;
 };
 
 const calculateItemPrice = (item: OrderItem): number => {
@@ -403,9 +406,12 @@ export const usePOSStore = create<POSStore>((set, get) => ({
         };
         
         set({ activeOrders: newOrders });
+        return existingItem.uniqueId; // Return the existing uniqueId
       } else {
-        const newOrders = [...get().activeOrders, { ...item, uniqueId }];
+        const itemWithUniqueId = { ...item, uniqueId };
+        const newOrders = [...get().activeOrders, itemWithUniqueId];
         set({ activeOrders: newOrders });
+        return uniqueId; // Return the new uniqueId
       }
     } catch (error) {
       if (error instanceof CartError) {
@@ -413,6 +419,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
       } else {
         set({ error: 'Failed to add item to cart' });
       }
+      return null; // Return null on error
     }
   },
 
