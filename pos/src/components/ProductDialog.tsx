@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, ChangeEvent } from 'react';
 import { X, Plus, Minus } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 import { OrderItem, usePOSStore } from '../store/pos-store';
 import { cn, formatCurrency } from '../lib/utils';
 import { Button, Dialog, DialogContent, Input } from './ui';
@@ -211,7 +212,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
     }
   };
 
-  const handleAddToOrder = () => {
+  const handleAddToOrder = async () => {
     const numericQuantity = typeof quantity === 'string' ? parseInt(quantity, 10) : quantity;
     if (isNaN(numericQuantity) || numericQuantity === 0) {
       return; // Don't add to order if quantity is 0 or invalid
@@ -222,16 +223,27 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
       removeFromOrder(itemToReplace.uniqueId);
     }
 
-    // Add main item as a cart line
+    // Add main item as a cart line with uniqueId
     const orderItem: OrderItem = {
       ...selectedItem,
       quantity: numericQuantity,
-      price: basePrice
+      price: basePrice,
+      // Preserve the original instanceId in edit mode, otherwise don't set it to maintain compatibility
+      ...(editMode && itemToReplace?.instanceId ? { instanceId: itemToReplace.instanceId } : {})
     };
-    addToOrder(orderItem);
+    
+    // Add main item first to get its uniqueId
+    const mainItemUniqueId = await addToOrder(orderItem);
 
-    // Add each selected add-on as a separate cart line
-    selectedAddons.forEach(addon => {
+    // If main item failed to add, don't add add-ons
+    if (!mainItemUniqueId) {
+      console.error("Failed to add main item");
+      handleClose();
+      return;
+    }
+
+    // Add each selected add-on as a separate cart line using the main item's uniqueId as parent
+    for (const addon of selectedAddons) {
       // Find the full menu item details for the add-on
       const menuAddon = menuItems.find(item => item.item === addon.id);
       const addonOrderItem: OrderItem = menuAddon
@@ -239,7 +251,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
             ...menuAddon,
             quantity: numericQuantity,
             price: addon.price,
-            parent_item: editMode && itemToReplace?.uniqueId ? itemToReplace.uniqueId : selectedItem.id, // Link to parent item uniqueId if available, else to parent item id
+            parent_item: mainItemUniqueId, // Link to the uniqueId of the main item that was just added
             is_addon: true // Mark as add-on
           }
         : {
@@ -254,11 +266,11 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
             description: '',
             special_dish: 0 as 0 | 1,
             tax_rate: 0,
-            parent_item: editMode && itemToReplace?.uniqueId ? itemToReplace.uniqueId : selectedItem.id, // Link to parent item uniqueId if available, else to parent item id
+            parent_item: mainItemUniqueId, // Link to the uniqueId of the main item that was just added
             is_addon: true // Mark as add-on
           } as OrderItem;
-      addToOrder(addonOrderItem);
-    });
+      await addToOrder(addonOrderItem);
+    }
 
     handleClose();
   };
