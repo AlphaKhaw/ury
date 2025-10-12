@@ -150,6 +150,7 @@ interface POSStore extends POSState {
   getItemPrice: (item: OrderItem) => number;
   getItemQuantityFromCart: (item: MenuItem) => number;
   getAddonsForItem: (parentItem: string) => OrderItem[];
+  removeItemWithAddons: (uniqueId: string) => Promise<void>;
   loadTableOrder: (table: string) => Promise<void>;
   clearTableOrder: () => void;
   isMenuInteractionDisabled: () => boolean;
@@ -165,7 +166,7 @@ const generateUniqueId = (item: OrderItem): string => {
   const variantId = item.selectedVariant?.id || 'default';
   const addonIds = item.selectedAddons?.map(addon => addon.id).sort().join('-') || 'no-addons';
   // Include an instanceId to distinguish separate instances of the same item configuration
-  const instanceId = item.instanceId || 'default';
+  const instanceId = item.instanceId || `default_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   return `${item.id}-${variantId}-${addonIds}-${instanceId}`;
 };
 
@@ -400,7 +401,17 @@ export const usePOSStore = create<POSStore>((set, get) => ({
         };
         uniqueId = generateUniqueId(itemToUse);
       } else {
-        itemToUse = item;
+        // For non-forced instances, check if item already has an instanceId
+        if (!item.instanceId) {
+          // Generate a default instanceId if none exists
+          const defaultInstanceId = `default_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          itemToUse = {
+            ...item,
+            instanceId: defaultInstanceId
+          };
+        } else {
+          itemToUse = item;
+        }
         uniqueId = generateUniqueId(itemToUse);
       }
 
@@ -623,6 +634,27 @@ export const usePOSStore = create<POSStore>((set, get) => ({
     return get().activeOrders.filter(item => 
       item.parent_item === parentItem && item.is_addon
     );
+  },
+
+  // Helper function to remove an item and all its add-ons
+  removeItemWithAddons: async (uniqueId: string) => {
+    try {
+      const { activeOrders } = get();
+      // Find all add-ons for this item
+      const addonsToRemove = activeOrders.filter(item => 
+        item.parent_item === uniqueId && item.is_addon
+      );
+      
+      // Remove the main item and all its add-ons
+      const newOrders = activeOrders.filter(item => 
+        item.uniqueId !== uniqueId && 
+        !(item.parent_item === uniqueId && item.is_addon)
+      );
+      
+      set({ activeOrders: newOrders });
+    } catch (error) {
+      set({ error: 'Failed to remove item and add-ons' });
+    }
   },
 
   loadTableOrder: async (table: string) => {

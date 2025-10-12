@@ -228,6 +228,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
       ...selectedItem,
       quantity: numericQuantity,
       price: basePrice,
+      comment: comments || undefined,
     };
     
     // Add main item first to get its uniqueId - force new instance for non-edit mode
@@ -241,6 +242,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
     }
 
     // Add each selected add-on as a separate cart line using the main item's uniqueId as parent
+    // For add-ons, we don't force new instances as they should be linked to the parent
     for (const addon of selectedAddons) {
       // Find the full menu item details for the add-on
       const menuAddon = menuItems.find(item => item.item === addon.id);
@@ -250,7 +252,8 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
             quantity: numericQuantity,
             price: addon.price,
             parent_item: mainItemUniqueId, // Link to the uniqueId of the main item that was just added
-            is_addon: true // Mark as add-on
+            is_addon: true, // Mark as add-on
+            comment: comments || undefined,
           }
         : {
             id: addon.id,
@@ -265,10 +268,11 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
             special_dish: 0 as 0 | 1,
             tax_rate: 0,
             parent_item: mainItemUniqueId, // Link to the uniqueId of the main item that was just added
-            is_addon: true // Mark as add-on
+            is_addon: true, // Mark as add-on
+            comment: comments || undefined,
           } as OrderItem;
-      // Add add-ons as new instances too to maintain the separate parent-child relationship
-      await addToOrder(addonOrderItem, !editMode);
+      // Add add-ons without forcing new instances to maintain proper parent-child relationship
+      await addToOrder(addonOrderItem, false);
     }
 
     handleClose();
