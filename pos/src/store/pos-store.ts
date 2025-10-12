@@ -4,7 +4,7 @@ import { storage } from '../lib/storage';
 import { getRestaurantMenu, getAggregatorMenu, MenuItem as APIMenuItem } from '../lib/menu-api';
 import { getCurrencyInfo, PosProfileCombined, getCombinedPosProfile } from '../lib/pos-profile-api';
 import { getMenuCourses } from '../lib/menu-course-api';
-import { getCustomerGroups, getCustomerTerritories } from '../lib/customer-api';
+import { getCustomerGroups, getCustomerTerritories, searchCustomers } from '../lib/customer-api';
 import { DEFAULT_ORDER_TYPE, OrderType } from '../data/order-types';
 import { getTableOrder, TableOrder } from '../lib/order-api';
 import { getPaymentModes } from '../lib/payment-api';
@@ -119,6 +119,7 @@ interface POSState {
   tableOrder: TableOrder | null;
   isInitializing: boolean;
   orderComment: string;
+  defaultCustomers: Record<OrderType, string | null>;
 }
 
 interface POSStore extends POSState {
@@ -160,6 +161,9 @@ interface POSStore extends POSState {
   resetOrderState: () => void;
   setSelectedAggregator: (aggregator: Aggregator | null) => void;
   setOrderComment: (comment: string) => void;
+  setDefaultCustomerForOrderType: (orderType: OrderType, customerId: string | null) => void;
+  getDefaultCustomerForOrderType: (orderType: OrderType) => string | null;
+  setDefaultCustomerForCurrentOrderType: () => Promise<void>;
 }
 
 const generateUniqueId = (item: OrderItem): string => {
@@ -207,6 +211,13 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   isUpdatingOrder: false,
   orderId: null,
   orderComment: '',
+  defaultCustomers: {
+    'Dine In': null,
+    'Take Away': null,
+    'Delivery': null,
+    'Phone In': null,
+    'Aggregators': null,
+  },
 
   initializeApp: async () => {
     try {
@@ -507,7 +518,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
     }
   },
   setSelectedOrderType: (type) => {
-    const { fetchMenuItems } = get();
+    const { fetchMenuItems, setDefaultCustomerForCurrentOrderType } = get();
     
     set({ 
       activeOrders: [],
@@ -515,6 +526,12 @@ export const usePOSStore = create<POSStore>((set, get) => ({
       isUpdatingOrder: false,
       orderId: null
     });
+    
+    // Set the default customer for the new order type if one exists and no customer is currently selected
+    // Only set default if we're not updating an existing order
+    if (type !== 'Aggregators' && !get().isUpdatingOrder && !get().selectedCustomer) {
+      setDefaultCustomerForCurrentOrderType();
+    }
     
     if (type !== 'Aggregators') {
       fetchMenuItems();
@@ -524,6 +541,62 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   setSelectedItem: (item) => set({ selectedItem: item }),
   setSelectedAggregator: (aggregator) => set({ selectedAggregator: aggregator }),
   setOrderComment: (comment: string) => set({ orderComment: comment }),
+  setDefaultCustomerForOrderType: (orderType: OrderType, customerId: string | null) => {
+    set((state) => ({
+      defaultCustomers: {
+        ...state.defaultCustomers,
+        [orderType]: customerId
+      }
+    }));
+  },
+  getDefaultCustomerForOrderType: (orderType: OrderType) => {
+    const state = get();
+    return state.defaultCustomers[orderType];
+  },
+  setDefaultCustomerForCurrentOrderType: async () => {
+    const { selectedOrderType, getDefaultCustomerForOrderType, setSelectedCustomer } = get();
+    const defaultCustomerId = getDefaultCustomerForOrderType(selectedOrderType);
+    
+    if (defaultCustomerId) {
+      try {
+        // Try to fetch the actual customer details
+        const searchResults = await searchCustomers(defaultCustomerId);
+        if (searchResults && searchResults.length > 0) {
+          const customer = searchResults[0];
+          const name = customer.content?.match(/Customer Name : ([^|]+)/)?.[1]?.trim() || customer.name;
+          const phone = customer.content?.match(/Mobile Number : ([^|]+)/)?.[1]?.trim() || '';
+          setSelectedCustomer({
+            id: customer.name,
+            name,
+            phone
+          });
+        } else {
+          // If search doesn't work, at least set the ID
+          setSelectedCustomer({
+            id: defaultCustomerId,
+            name: selectedOrderType === 'Dine In' ? 'Walk-in Customer' : 
+                  selectedOrderType === 'Take Away' ? 'Take Away Customer' :
+                  selectedOrderType === 'Delivery' ? 'Delivery Customer' :
+                  selectedOrderType === 'Phone In' ? 'Phone In Customer' :
+                  selectedOrderType === 'Aggregators' ? 'Aggregator Customer' : 'Default Customer',
+            phone: ''
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching default customer:', error);
+        // Fallback to setting just the ID with a default name
+        setSelectedCustomer({
+          id: defaultCustomerId,
+          name: selectedOrderType === 'Dine In' ? 'Walk-in Customer' : 
+                selectedOrderType === 'Take Away' ? 'Take Away Customer' :
+                selectedOrderType === 'Delivery' ? 'Delivery Customer' :
+                selectedOrderType === 'Phone In' ? 'Phone In Customer' :
+                selectedOrderType === 'Aggregators' ? 'Aggregator Customer' : 'Default Customer',
+          phone: ''
+        });
+      }
+    }
+  },
 
   processPayment: async (paymentMode: string, amount: number) => {
     try {

@@ -222,7 +222,14 @@ interface CustomerSelectProps {
 }
 
 export function CustomerSelect({ disabled }: CustomerSelectProps) {
-  const { selectedCustomer, setSelectedCustomer, selectedOrderType, isUpdatingOrder } = usePOSStore();
+  const { 
+    selectedCustomer, 
+    setSelectedCustomer, 
+    selectedOrderType, 
+    isUpdatingOrder,
+    setDefaultCustomerForOrderType,
+    getDefaultCustomerForOrderType
+  } = usePOSStore();
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -301,20 +308,38 @@ export function CustomerSelect({ disabled }: CustomerSelectProps) {
   return (
     <div className="relative">
       {selectedCustomer ? (
-        <div className="flex items-center justify-between bg-blue-50 p-3 rounded-lg">
+        <div className="flex flex-col gap-2 bg-blue-50 p-3 rounded-lg">
           <div>
-            <p className="font-medium text-blue-900">{selectedCustomer.name}</p>
+            <div className="font-medium text-blue-900 flex items-center gap-2">
+              {selectedCustomer.name}
+              {getDefaultCustomerForOrderType(selectedOrderType) === selectedCustomer.id && (
+                <span className="bg-blue-200 text-blue-800 text-xs px-2 py-0.5 rounded-full">
+                  Default for {selectedOrderType}
+                </span>
+              )}
+            </div>
             <p className="text-sm text-blue-700">{selectedCustomer.phone}</p>
           </div>
-          <Button
-            onClick={() => setSelectedCustomer(null)}
-            disabled={isUpdatingOrder}
-            variant="ghost"
-            size="sm"
-            className="text-blue-700 hover:text-blue-800"
-          >
-            Change
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setSelectedCustomer(null)}
+              disabled={isUpdatingOrder}
+              variant="outline"
+              size="sm"
+              className="flex-1 text-blue-700 hover:text-blue-800 border-blue-300"
+            >
+              Change
+            </Button>
+            <Button
+              onClick={() => setDefaultCustomerForOrderType(selectedOrderType, selectedCustomer.id)}
+              disabled={isUpdatingOrder}
+              variant="default"
+              size="sm"
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
+            >
+              Set as Default
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="relative">
@@ -356,6 +381,7 @@ export function CustomerSelect({ disabled }: CustomerSelectProps) {
               {!isSearching && !searchError && searchResults.length > 0 && searchResults.map((customer, idx) => {
                 const name = customer.content?.match(/Customer Name : ([^|]+)/)?.[1]?.trim() || customer.name;
                 const phone = customer.content?.match(/Mobile Number : ([^|]+)/)?.[1]?.trim() || '';
+                const isDefault = getDefaultCustomerForOrderType(selectedOrderType) === customer.name;
                 return (
                   <button
                     key={customer.name}
@@ -370,7 +396,14 @@ export function CustomerSelect({ disabled }: CustomerSelectProps) {
                     }}
                     onMouseEnter={() => setHighlightedIndex(idx)}
                   >
-                    <div className="font-medium">{name}</div>
+                    <div className="font-medium flex items-center gap-2">
+                      {name}
+                      {isDefault && (
+                        <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">
+                          Default for {selectedOrderType}
+                        </span>
+                      )}
+                    </div>
                     <div className="ml-auto text-xs text-gray-500">{phone}</div>
                   </button>
                 );
