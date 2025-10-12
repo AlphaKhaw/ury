@@ -223,17 +223,15 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
       removeFromOrder(itemToReplace.uniqueId);
     }
 
-    // Add main item as a cart line with uniqueId
+    // Add main item as a cart line
     const orderItem: OrderItem = {
       ...selectedItem,
       quantity: numericQuantity,
       price: basePrice,
-      // Preserve the original instanceId in edit mode, otherwise don't set it to maintain compatibility
-      ...(editMode && itemToReplace?.instanceId ? { instanceId: itemToReplace.instanceId } : {})
     };
     
-    // Add main item first to get its uniqueId
-    const mainItemUniqueId = await addToOrder(orderItem);
+    // Add main item first to get its uniqueId - force new instance for non-edit mode
+    const mainItemUniqueId = await addToOrder(orderItem, !editMode);
 
     // If main item failed to add, don't add add-ons
     if (!mainItemUniqueId) {
@@ -269,7 +267,8 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
             parent_item: mainItemUniqueId, // Link to the uniqueId of the main item that was just added
             is_addon: true // Mark as add-on
           } as OrderItem;
-      await addToOrder(addonOrderItem);
+      // Add add-ons as new instances too to maintain the separate parent-child relationship
+      await addToOrder(addonOrderItem, !editMode);
     }
 
     handleClose();

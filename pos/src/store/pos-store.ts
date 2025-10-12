@@ -126,7 +126,7 @@ interface POSStore extends POSState {
   fetchAggregatorMenu: (aggregator: string) => Promise<void>;
   fetchCategories: () => Promise<void>;
   fetchPaymentModes: () => Promise<void>;
-  addToOrder: (item: OrderItem) => Promise<string | null>;
+  addToOrder: (item: OrderItem, forceNewInstance?: boolean) => Promise<string | null>;
   removeFromOrder: (uniqueId: string) => Promise<void>;
   updateQuantity: (uniqueId: string, quantity: number) => Promise<void>;
   clearOrder: () => Promise<void>;
@@ -381,39 +381,59 @@ export const usePOSStore = create<POSStore>((set, get) => ({
     set({ cartId: uuidv4() });
   },
 
-  addToOrder: async (item: OrderItem) => {
+  addToOrder: async (item: OrderItem, forceNewInstance: boolean = false) => {
     try {
       if (!get().validateQuantity(item.quantity)) {
         throw new CartError(`Quantity must be between ${MIN_QUANTITY} and ${MAX_QUANTITY}`);
       }
 
-      const uniqueId = generateUniqueId(item);
-      const existingItemIndex = get().activeOrders.findIndex(orderItem => orderItem.uniqueId === uniqueId);
+      // If forcing a new instance, generate a unique instanceId to ensure it's treated as separate
+      let uniqueId: string;
+      let itemToUse: OrderItem;
 
-      if (existingItemIndex !== -1) {
-        const existingItem = get().activeOrders[existingItemIndex];
-        const newQuantity = existingItem.quantity + item.quantity;
-        const newComment = item.comment !== undefined ? item.comment : existingItem?.comment || "";
-
-        if (!get().validateQuantity(newQuantity)) {
-          throw new CartError(`Cannot add item. Total quantity would exceed ${MAX_QUANTITY}`);
-        }
-
-        const newOrders = [...get().activeOrders];
-        newOrders[existingItemIndex] = {
-          ...existingItem,
-          quantity: newQuantity,
-          comment: newComment
+      if (forceNewInstance) {
+        // Generate a new instanceId to ensure this becomes a separate entry
+        const forcedInstanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        itemToUse = {
+          ...item,
+          instanceId: forcedInstanceId
         };
-        
-        set({ activeOrders: newOrders });
-        return existingItem.uniqueId; // Return the existing uniqueId
+        uniqueId = generateUniqueId(itemToUse);
       } else {
-        const itemWithUniqueId = { ...item, uniqueId };
-        const newOrders = [...get().activeOrders, itemWithUniqueId];
-        set({ activeOrders: newOrders });
-        return uniqueId; // Return the new uniqueId
+        itemToUse = item;
+        uniqueId = generateUniqueId(itemToUse);
       }
+
+      // Only check for existing items if not forcing a new instance
+      if (!forceNewInstance) {
+        const existingItemIndex = get().activeOrders.findIndex(orderItem => orderItem.uniqueId === uniqueId);
+
+        if (existingItemIndex !== -1) {
+          const existingItem = get().activeOrders[existingItemIndex];
+          const newQuantity = existingItem.quantity + item.quantity;
+          const newComment = item.comment !== undefined ? item.comment : existingItem?.comment || "";
+
+          if (!get().validateQuantity(newQuantity)) {
+            throw new CartError(`Cannot add item. Total quantity would exceed ${MAX_QUANTITY}`);
+          }
+
+          const newOrders = [...get().activeOrders];
+          newOrders[existingItemIndex] = {
+            ...existingItem,
+            quantity: newQuantity,
+            comment: newComment
+          };
+          
+          set({ activeOrders: newOrders });
+          return existingItem.uniqueId; // Return the existing uniqueId
+        }
+      }
+
+      // If we get here, either forcing new instance or no existing item found
+      const itemWithUniqueId = { ...itemToUse, uniqueId };
+      const newOrders = [...get().activeOrders, itemWithUniqueId];
+      set({ activeOrders: newOrders });
+      return uniqueId; // Return the new uniqueId
     } catch (error) {
       if (error instanceof CartError) {
         set({ error: error.message });
