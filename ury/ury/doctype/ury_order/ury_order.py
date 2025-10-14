@@ -76,7 +76,7 @@ def get_order_invoice(table=None, invoiceNo=None, order_type=None, is_payment=No
 
         if is_payment == "Payments":
             invoice_name = frappe.get_value(
-                "POS Invoice", dict(restaurant_table=table, docstatus=0, name=invoiceNo)
+                "POS Invoice", dict(docstatus=0, name=invoiceNo)
             )
             
         else:
@@ -568,7 +568,7 @@ def cancel_order(invoice_id, reason):
 # Method for URY POS
 @frappe.whitelist()
 def make_invoice(customer, payments, cashier, pos_profile,owner, additionalDiscount=None, table=None, invoice=None):
-    order_type =  invoice_name = frappe.get_value("POS Invoice",invoice , "order_type")
+    order_type = frappe.get_value("POS Invoice", invoice, "order_type")
     invoice = get_order_invoice(table, invoice, order_type, "Payments")
 
     if table:
