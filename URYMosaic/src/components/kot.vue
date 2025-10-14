@@ -129,6 +129,9 @@
               <div></div>
               <div>
                 <!-- Grouped KOT Items Display -->
+                <div v-if="getGroupedKotItems(kot).length === 0" class="text-gray-500 text-sm">
+                  No items to display
+                </div>
                 <div v-for="group in getGroupedKotItems(kot)" :key="group.grouping" class="mb-4">
                   <!-- Main Item -->
                   <div
@@ -661,18 +664,30 @@ export default {
     getGroupedKotItems() {
       return (kot) => {
         if (!kot || !kot.kot_items || !Array.isArray(kot.kot_items)) {
+          console.warn('Invalid KOT or kot_items:', kot);
           return [];
         }
 
-        const items = kot.kot_items.sort((a, b) => a.serve_priority - b.serve_priority);
+        if (kot.kot_items.length === 0) {
+          console.warn('Empty kot_items array for KOT:', kot.name);
+          return [];
+        }
+
+        const items = kot.kot_items.sort((a, b) => {
+          const priorityA = a.serve_priority || 0;
+          const priorityB = b.serve_priority || 0;
+          return priorityA - priorityB;
+        });
+
         const groups = {};
+        let groupCounter = 0;
 
         // First pass: Create groups for all main items (non-addon items)
-        items.forEach(item => {
+        items.forEach((item, index) => {
           if (!item.is_addon) {
             // This is a main item
-            // Use item_grouping if available, otherwise create a unique key based on item code
-            const groupingKey = item.item_grouping || `main_${item.item}_${item.name}`;
+            // Use item_grouping if available, otherwise create a unique sequential key
+            const groupingKey = item.item_grouping || `main_group_${groupCounter++}`;
 
             if (!groups[groupingKey]) {
               groups[groupingKey] = {
@@ -691,11 +706,9 @@ export default {
             let foundGroup = false;
 
             // If item has item_grouping, try to find matching group first
-            if (item.item_grouping) {
-              if (groups[item.item_grouping]) {
-                groups[item.item_grouping].addons.push(item);
-                foundGroup = true;
-              }
+            if (item.item_grouping && groups[item.item_grouping]) {
+              groups[item.item_grouping].addons.push(item);
+              foundGroup = true;
             }
 
             // If not found by grouping, search for parent by item code
@@ -711,7 +724,8 @@ export default {
 
             // If still not found, create orphaned add-on group
             if (!foundGroup) {
-              const orphanKey = `orphan_${item.item}_${item.name}`;
+              console.warn('Orphaned add-on found:', item);
+              const orphanKey = `orphan_${groupCounter++}`;
               groups[orphanKey] = {
                 grouping: orphanKey,
                 mainItem: item,
@@ -721,8 +735,9 @@ export default {
           }
         });
 
-        // Convert groups object to array and return
-        return Object.values(groups);
+        const result = Object.values(groups);
+        console.log('Grouped KOT items for', kot.name, ':', result);
+        return result;
       };
     },
   },

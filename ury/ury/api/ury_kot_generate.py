@@ -416,17 +416,34 @@ def kot_execute(
 
 
 # Compare two arrays and return the items that are different
+# Now properly handles add-ons by comparing parent_item and is_addon fields
 def compare_two_array(array_1, array_2):
     finalarray = []
     for index, x in enumerate(array_1):
+        # Match by item_code, qty, and also consider parent_item and is_addon for add-ons
         a = list(
             filter(
-                lambda y: y["item_code"] == x["item_code"] and y["qty"] == x["qty"],
+                lambda y: (
+                    y["item_code"] == x["item_code"]
+                    and y["qty"] == x["qty"]
+                    and y.get("parent_item", "") == x.get("parent_item", "")
+                    and y.get("is_addon", False) == x.get("is_addon", False)
+                ),
                 array_2,
             )
         )
         if len(a) == 0:
-            b = list(filter(lambda z: z["item_code"] == x["item_code"], array_2))
+            # Find items with same item_code and parent_item (for add-ons)
+            b = list(
+                filter(
+                    lambda z: (
+                        z["item_code"] == x["item_code"]
+                        and z.get("parent_item", "") == x.get("parent_item", "")
+                        and z.get("is_addon", False) == x.get("is_addon", False)
+                    ),
+                    array_2
+                )
+            )
             for qtb in b:
                 x["qty"] = int(x["qty"]) - int(qtb["qty"])
             finalarray.append(x)
@@ -434,10 +451,17 @@ def compare_two_array(array_1, array_2):
 
 
 # Get the items that have been removed from the second array compared to the first array
+# Now properly handles add-ons by considering parent_item and is_addon fields
 def get_removed_items(array_1, array_2):
-    removed_objects = [
-        obj
-        for obj in array_1
-        if obj["item_code"] not in [x["item_code"] for x in array_2]
-    ]
+    removed_objects = []
+    for obj in array_1:
+        # Check if this exact item (including add-on status and parent) exists in array_2
+        found = any(
+            x["item_code"] == obj["item_code"]
+            and x.get("parent_item", "") == obj.get("parent_item", "")
+            and x.get("is_addon", False) == obj.get("is_addon", False)
+            for x in array_2
+        )
+        if not found:
+            removed_objects.append(obj)
     return removed_objects

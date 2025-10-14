@@ -570,44 +570,54 @@ def cancel_order(invoice_id, reason):
 def make_invoice(customer, payments, cashier, pos_profile,owner, additionalDiscount=None, table=None, invoice=None):
     if not invoice:
         frappe.throw("Invoice ID is required")
-    
+
     if not customer:
         frappe.throw("Customer is required")
-    
+
+    # Parse payments if it's a JSON string
+    if isinstance(payments, str):
+        payments = json.loads(payments)
+
     if not payments or len(payments) == 0:
         frappe.throw("Payments are required")
-    
+
     try:
         order_type = frappe.get_value("POS Invoice", invoice, "order_type")
         if not order_type:
             frappe.throw(f"Order type not found for invoice {invoice}")
-        invoice = get_order_invoice(table, invoice, order_type, "Payments")
+        invoice_doc = get_order_invoice(table, invoice, order_type, "Payments")
     except Exception as e:
         frappe.throw(f"Error getting invoice: {str(e)}")
 
     if table:
         branch, menu, restaurant = get_restaurant_and_menu_name(table)
-        invoice.restaurant = restaurant
+        invoice_doc.restaurant = restaurant
 
-    invoice.customer = customer
-    invoice.pos_profile = pos_profile
-    invoice.additional_discount_percentage=additionalDiscount
-    invoice.calculate_taxes_and_totals()
+    invoice_doc.customer = customer
+    invoice_doc.pos_profile = pos_profile
+    invoice_doc.additional_discount_percentage=additionalDiscount
+    invoice_doc.calculate_taxes_and_totals()
 
-    for pay in invoice.payments:
+    for pay in invoice_doc.payments:
         pay.delete()
 
     for d in payments:
-        invoice.append(
+        invoice_doc.append(
             "payments", dict(mode_of_payment=d["mode_of_payment"], amount=d["amount"])
         )
 
-    invoice.owner = owner
+    invoice_doc.owner = owner
     try:
-        invoice.save()
-        invoice.submit()
+        invoice_doc.save()
+        invoice_doc.submit()
     except Exception as e:
         frappe.throw(f"Error while settling order: {str(e)}")
+
+    # Mark table as unoccupied if it was a table order
+    if table:
+        frappe.db.set_value("URY Table", table, {"occupied": 0, "latest_invoice_time": None})
+
+    return invoice_doc.as_dict()
     
     
 
