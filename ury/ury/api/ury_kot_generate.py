@@ -20,6 +20,8 @@ def create_order_items(items):
             "qty": item["qty"],
             "item_name": item["item_name"],
             "comments": item.get("comment", item.get("comments", "")),
+            "parent_item": item.get("parent_item", ""),
+            "is_addon": item.get("is_addon", False),
         }
         order_items.append(order_item)
     return order_items
