@@ -527,6 +527,12 @@ export const usePOSStore = create<POSStore>((set, get) => ({
     if (room) {
       get().fetchMenuItems();
     }
+    
+    // Set default customer for the current order type when table is selected
+    // Only if we're not loading an existing order and not updating an order
+    if (table && !get().isUpdatingOrder && !get().orderId) {
+      get().setDefaultCustomerForCurrentOrderType();
+    }
   },
   setSelectedOrderType: (type) => {
     const { fetchMenuItems, setDefaultCustomerForCurrentOrderType } = get();
