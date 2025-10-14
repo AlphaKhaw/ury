@@ -586,7 +586,7 @@ def make_invoice(customer, payments, cashier, pos_profile,owner, additionalDisco
         frappe.throw(f"Error getting invoice: {str(e)}")
 
     if table:
-        restaurant = get_restaurant_and_menu_name(table)
+        branch, menu, restaurant = get_restaurant_and_menu_name(table)
         invoice.restaurant = restaurant
 
     invoice.customer = customer

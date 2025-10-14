@@ -251,7 +251,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
             ...menuAddon,
             quantity: numericQuantity,
             price: addon.price,
-            parent_item: mainItemUniqueId, // Link to the uniqueId of the main item that was just added
+            parent_item: selectedItem.item, // Link to the item code of the main item for KOT grouping
             is_addon: true, // Mark as add-on
             comment: comments || undefined,
           }
@@ -267,7 +267,7 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
             description: '',
             special_dish: 0 as 0 | 1,
             tax_rate: 0,
-            parent_item: mainItemUniqueId, // Link to the uniqueId of the main item that was just added
+            parent_item: selectedItem.item, // Link to the item code of the main item for KOT grouping
             is_addon: true, // Mark as add-on
             comment: comments || undefined,
           } as OrderItem;

@@ -663,17 +663,17 @@ export default {
         if (!kot || !kot.kot_items || !Array.isArray(kot.kot_items)) {
           return [];
         }
-        
+
         const items = kot.kot_items.sort((a, b) => a.serve_priority - b.serve_priority);
         const groups = {};
-        
-        // Process all items to group main items with their add-ons
+
+        // First pass: Create groups for all main items (non-addon items)
         items.forEach(item => {
-          if (!item.is_addon || !item.parent_item) {
-            // This is a main item or standalone item
-            // Use item_grouping if available, otherwise create a unique key
-            const groupingKey = item.item_grouping || `group_${item.item}`;
-            
+          if (!item.is_addon) {
+            // This is a main item
+            // Use item_grouping if available, otherwise create a unique key based on item code
+            const groupingKey = item.item_grouping || `main_${item.item}_${item.name}`;
+
             if (!groups[groupingKey]) {
               groups[groupingKey] = {
                 grouping: groupingKey,
@@ -681,49 +681,46 @@ export default {
                 addons: []
               };
             }
-          } else {
-            // This is an add-on item
-            // Find the main item it belongs to
+          }
+        });
+
+        // Second pass: Assign add-ons to their parent groups
+        items.forEach(item => {
+          if (item.is_addon && item.parent_item) {
+            // This is an add-on item, find its parent group
             let foundGroup = false;
-            
-            // Look for existing group where main item matches parent_item
-            for (const key in groups) {
-              if (groups[key].mainItem && groups[key].mainItem.item === item.parent_item) {
-                groups[key].addons.push(item);
+
+            // If item has item_grouping, try to find matching group first
+            if (item.item_grouping) {
+              if (groups[item.item_grouping]) {
+                groups[item.item_grouping].addons.push(item);
                 foundGroup = true;
-                break;
               }
             }
-            
-            // If no existing group found, check if main item exists in the current items list
+
+            // If not found by grouping, search for parent by item code
             if (!foundGroup) {
-              const mainItem = items.find(i => !i.is_addon && i.item === item.parent_item);
-              if (mainItem) {
-                const groupingKey = mainItem.item_grouping || `group_${mainItem.item}`;
-                if (!groups[groupingKey]) {
-                  groups[groupingKey] = {
-                    grouping: groupingKey,
-                    mainItem: mainItem,
-                    addons: [item]
-                  };
-                } else {
-                  groups[groupingKey].addons.push(item);
-                }
-              } else {
-                // Handle orphaned add-on as a standalone group
-                const orphanKey = `orphan_${item.item}`;
-                if (!groups[orphanKey]) {
-                  groups[orphanKey] = {
-                    grouping: orphanKey,
-                    mainItem: item,
-                    addons: []
-                  };
+              for (const key in groups) {
+                if (groups[key].mainItem && groups[key].mainItem.item === item.parent_item) {
+                  groups[key].addons.push(item);
+                  foundGroup = true;
+                  break;
                 }
               }
+            }
+
+            // If still not found, create orphaned add-on group
+            if (!foundGroup) {
+              const orphanKey = `orphan_${item.item}_${item.name}`;
+              groups[orphanKey] = {
+                grouping: orphanKey,
+                mainItem: item,
+                addons: []
+              };
             }
           }
         });
-        
+
         // Convert groups object to array and return
         return Object.values(groups);
       };
