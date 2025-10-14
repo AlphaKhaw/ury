@@ -15,7 +15,10 @@
   "comments",
   "course",
   "serve_priority",
-  "indicate_course"
+  "indicate_course",
+  "parent_item",
+  "is_addon",
+  "item_grouping"
  ],
  "fields": [
   {
@@ -71,6 +74,25 @@
    "fieldtype": "Check",
    "label": "Indicate Course",
    "read_only": 1
+  },
+  {
+   "fieldname": "parent_item",
+   "fieldtype": "Data",
+   "label": "Parent Item",
+   "description": "Reference to the main item this add-on belongs to"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_addon",
+   "fieldtype": "Check",
+   "label": "Is Add-on",
+   "description": "Indicates if this item is an add-on to a main item"
+  },
+  {
+   "fieldname": "item_grouping",
+   "fieldtype": "Data",
+   "label": "Item Grouping",
+   "description": "Used for grouping items in KOT display (main item + add-ons)"
   }
  ],
  "index_web_pages_for_search": 1,

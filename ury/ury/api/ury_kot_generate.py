@@ -67,18 +67,55 @@ def create_kot_doc(
     else:
         menu = frappe.db.get_value("URY Restaurant", {"branch": branch}, "active_menu")
 
+    # Group items by parent-child relationships for better KOT display
+    main_items = []
+    addon_items = []
+    
     for item in items:
-        course = frappe.db.get_value("URY Menu Item", {"item": item["item_code"],"parent":menu}, "course")
+        if item.get("is_addon") and item.get("parent_item"):
+            addon_items.append(item)
+        else:
+            main_items.append(item)
+    
+    # Process main items first, then their add-ons
+    for idx, main_item in enumerate(main_items):
+        course = frappe.db.get_value("URY Menu Item", {"item": main_item["item_code"],"parent":menu}, "course")
+        
+        # Create a unique grouping identifier for this main item and its add-ons
+        item_grouping = f"group_{main_item['item_code']}_{idx}"
+        
+        # Add main item
         kot_doc.append(
             "kot_items",
             {
-                "item": item["item_code"],
-                "item_name": item["item_name"],
-                "quantity": item["qty"],
-                "comments": item["comments"],
-                "course":course
+                "item": main_item["item_code"],
+                "item_name": main_item["item_name"],
+                "quantity": main_item["qty"],
+                "comments": main_item.get("comments", ""),
+                "course": course,
+                "parent_item": "",
+                "is_addon": 0,
+                "item_grouping": item_grouping
             },
         )
+        
+        # Add add-ons for this main item
+        for addon in addon_items:
+            if addon.get("parent_item") == main_item["item_code"]:
+                addon_course = frappe.db.get_value("URY Menu Item", {"item": addon["item_code"],"parent":menu}, "course")
+                kot_doc.append(
+                    "kot_items",
+                    {
+                        "item": addon["item_code"],
+                        "item_name": addon["item_name"],
+                        "quantity": addon["qty"],
+                        "comments": addon.get("comments", ""),
+                        "course": addon_course,
+                        "parent_item": main_item["item_code"],
+                        "is_addon": 1,
+                        "item_grouping": item_grouping
+                    },
+                )
     kot_doc.insert()
     kot_doc.submit()
 

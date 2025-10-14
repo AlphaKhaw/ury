@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>KOT Display - {{ doc.name }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            margin: 0;
+            padding: 15px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        .kot-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #2c3e50;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .kot-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+        .kot-info {
+            font-size: 16px;
+            margin-bottom: 5px;
+            color: #34495e;
+        }
+        .kot-info.highlight {
+            background-color: #3498db;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            display: inline-block;
+        }
+        .item-group {
+            margin-bottom: 20px;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            padding: 15px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .main-item {
+            font-weight: bold;
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            padding: 10px;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .addon-item {
+            font-size: 16px;
+            color: #7f8c8d;
+            margin-left: 25px;
+            margin-bottom: 6px;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color: white;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+        .addon-item::before {
+            content: "└─";
+            position: absolute;
+            left: -20px;
+            color: #bdc3c7;
+            font-weight: bold;
+        }
+        .quantity {
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .comments {
+            font-style: italic;
+            color: #95a5a6;
+            font-size: 13px;
+            margin-top: 5px;
+            padding: 5px 10px;
+            background-color: #ecf0f1;
+            border-radius: 4px;
+            border-left: 3px solid #f39c12;
+        }
+        .course-separator {
+            margin: 15px 0;
+            text-align: center;
+            font-weight: bold;
+            color: #34495e;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        .footer {
+            margin-top: 25px;
+            text-align: center;
+            font-size: 12px;
+            color: #7f8c8d;
+            border-top: 2px solid #ecf0f1;
+            padding-top: 15px;
+        }
+        .urgent {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="kot-container">
+        <div class="header">
+            <div class="kot-title">🍽️ KITCHEN ORDER TICKET</div>
+            <div class="kot-info highlight">KOT #: {{ doc.name }}</div>
+            <div class="kot-info">📍 Table: {{ doc.restaurant_table or "Take Away" }}</div>
+            <div class="kot-info">👤 Customer: {{ doc.customer_name }}</div>
+            <div class="kot-info">⏰ Time: {{ doc.creation.strftime("%H:%M") }}</div>
+            {% if doc.comments %}
+            <div class="kot-info">💬 Comments: {{ doc.comments }}</div>
+            {% endif %}
+        </div>
+
+        {% set current_course = "" %}
+        {% for item in doc.kot_items %}
+            {% if item.course != current_course %}
+                {% if current_course != "" %}
+                    <div class="course-separator">--- End of {{ current_course }} ---</div>
+                {% endif %}
+                <div class="course-separator">🍴 {{ item.course or "Main Course" }}</div>
+                {% set current_course = item.course %}
+            {% endif %}
+
+            {% if not item.is_addon %}
+                <div class="item-group">
+                    <div class="main-item">
+                        <span>{{ item.item_name }}</span>
+                        <span class="quantity">Qty: {{ item.quantity }}</span>
+                    </div>
+                    {% if item.comments %}
+                    <div class="comments">📝 Note: {{ item.comments }}</div>
+                    {% endif %}
+                    
+                    <!-- Add add-ons for this main item -->
+                    {% for addon in doc.kot_items %}
+                        {% if addon.is_addon and addon.parent_item == item.item %}
+                            <div class="addon-item">
+                                <span>+ {{ addon.item_name }}</span>
+                                <span class="quantity">Qty: {{ addon.quantity }}</span>
+                            </div>
+                            {% if addon.comments %}
+                            <div class="comments" style="margin-left: 25px;">📝 Note: {{ addon.comments }}</div>
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endfor %}
+
+        {% if current_course != "" %}
+            <div class="course-separator">--- End of {{ current_course }} ---</div>
+        {% endif %}
+
+        <div class="footer">
+            <div>🕒 Generated: {{ doc.creation.strftime("%Y-%m-%d %H:%M:%S") }}</div>
+            <div>🏭 Production Unit: {{ doc.production }}</div>
+        </div>
+    </div>
+</body>
+</html>

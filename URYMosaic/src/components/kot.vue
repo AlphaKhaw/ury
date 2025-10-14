@@ -128,26 +128,24 @@
               </div>
               <div></div>
               <div>
-                <div
-                  class="font-semibold justify-between items-center mt-2"
-                  v-for="kotitem in sortedKotItems(kot)"
-                  :key="kotitem.name"
-                >
+                <!-- Grouped KOT Items Display -->
+                <div v-for="group in getGroupedKotItems(kot)" :key="group.grouping" class="mb-4">
+                  <!-- Main Item -->
                   <div
                     @click="
                       () => {
-                        toggleItemStrikeThrough(kotitem, kot);
+                        toggleItemStrikeThrough(group.mainItem, kot);
                       }
                     "
                     :class="{
-                      'line-through text-green-700': kotitem.striked,
+                      'line-through text-green-700': group.mainItem.striked,
                     }"
-                    class="flex font-semibold justify-between items-center"
+                    class="flex font-semibold justify-between items-center bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500"
                   >
                     <div>
-                      <span class="ml-2 text-black-100">{{
-                        kotitem.item_name
-                      }}<span v-show="kotitem.indicate_course" class="text-sm text-gray-500 ml-1"> ( {{kotitem.course}} )</span>
+                      <span class="ml-2 text-black-100 font-bold">{{
+                        group.mainItem.item_name
+                      }}<span v-show="group.mainItem.indicate_course" class="text-sm text-gray-500 ml-1"> ( {{group.mainItem.course}} )</span>
                       </span
                       ><br />
                       <span
@@ -156,21 +154,65 @@
                           kot.type === 'Partially cancelled' ||
                           kot.type === 'Cancelled'
                         "
-                        >[Old Qty = {{ kotitem.quantity }}]</span
+                        >[Old Qty = {{ group.mainItem.quantity }}]</span
                       >
                     </div>
                     <div>
-                      <span class="ml-2 text-black-100">{{ kotitem.qty }}</span>
+                      <span class="ml-2 text-black-100 font-bold">{{ group.mainItem.qty }}</span>
                     </div>
                   </div>
+                  
+                  <!-- Add-ons for this main item -->
+                  <div v-for="addon in group.addons" :key="addon.name" class="ml-6">
+                    <div
+                      @click="
+                        () => {
+                          toggleItemStrikeThrough(addon, kot);
+                        }
+                      "
+                      :class="{
+                        'line-through text-green-700': addon.striked,
+                      }"
+                      class="flex font-medium justify-between items-center bg-green-50 p-2 rounded-lg border-l-4 border-green-500"
+                    >
+                      <div>
+                        <span class="ml-2 text-black-100">+ {{
+                          addon.item_name
+                        }}<span v-show="addon.indicate_course" class="text-sm text-gray-500 ml-1"> ( {{addon.course}} )</span>
+                        </span
+                        ><br />
+                        <span
+                          class="ml-2 text-black-100"
+                          v-if="
+                            kot.type === 'Partially cancelled' ||
+                            kot.type === 'Cancelled'
+                          "
+                          >[Old Qty = {{ addon.quantity }}]</span
+                        >
+                      </div>
+                      <div>
+                        <span class="ml-2 text-black-100">{{ addon.qty }}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <p
+                        v-show="addon.comments"
+                        class="ml-8 text-[#6B7280] font-medium text-sm"
+                      >
+                        {{ addon.comments }}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <!-- Main item comments -->
                   <div>
                     <p
-                      v-show="kotitem.comments"
+                      v-show="group.mainItem.comments"
                       class="ml-2 text-[#6B7280] font-medium"
                     >
-                      {{ kotitem.comments }}
+                      {{ group.mainItem.comments }}
                     </p>
-                    <hr class="my-1 border-gray-200 mt-2" />
+                    <hr class="my-2 border-gray-200" />
                   </div>
                 </div>
               </div>
@@ -614,6 +656,37 @@ export default {
     sortedKotItems() {
       return (kot) => {
         return kot.kot_items.sort((a, b) => a.serve_priority - b.serve_priority);
+      };
+    },
+    getGroupedKotItems() {
+      return (kot) => {
+        const items = kot.kot_items.sort((a, b) => a.serve_priority - b.serve_priority);
+        const groups = {};
+        
+        // Group items by their parent-child relationships
+        items.forEach(item => {
+          if (!item.is_addon) {
+            // This is a main item
+            if (!groups[item.item_grouping]) {
+              groups[item.item_grouping] = {
+                grouping: item.item_grouping,
+                mainItem: item,
+                addons: []
+              };
+            }
+          } else {
+            // This is an add-on, find its parent group
+            const parentGroup = Object.values(groups).find(group => 
+              group.mainItem.item === item.parent_item
+            );
+            if (parentGroup) {
+              parentGroup.addons.push(item);
+            }
+          }
+        });
+        
+        // Convert groups object to array
+        return Object.values(groups);
       };
     },
   },
