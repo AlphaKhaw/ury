@@ -211,13 +211,24 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   isUpdatingOrder: false,
   orderId: null,
   orderComment: '',
-  defaultCustomers: {
-    'Dine In': null,
-    'Take Away': null,
-    'Delivery': null,
-    'Phone In': null,
-    'Aggregators': null,
-  },
+  defaultCustomers: (() => {
+    // Load from localStorage on initialization
+    try {
+      const stored = localStorage.getItem('defaultCustomers');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load default customers from localStorage:', error);
+    }
+    return {
+      'Dine In': null,
+      'Take Away': null,
+      'Delivery': null,
+      'Phone In': null,
+      'Aggregators': null,
+    };
+  })(),
 
   initializeApp: async () => {
     try {
@@ -527,9 +538,9 @@ export const usePOSStore = create<POSStore>((set, get) => ({
       orderId: null
     });
     
-    // Set the default customer for the new order type if one exists and no customer is currently selected
+    // Set the default customer for the new order type if one exists
     // Only set default if we're not updating an existing order
-    if (type !== 'Aggregators' && !get().isUpdatingOrder && !get().selectedCustomer) {
+    if (type !== 'Aggregators' && !get().isUpdatingOrder) {
       setDefaultCustomerForCurrentOrderType();
     }
     
@@ -542,12 +553,19 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   setSelectedAggregator: (aggregator) => set({ selectedAggregator: aggregator }),
   setOrderComment: (comment: string) => set({ orderComment: comment }),
   setDefaultCustomerForOrderType: (orderType: OrderType, customerId: string | null) => {
-    set((state) => ({
-      defaultCustomers: {
+    set((state) => {
+      const newDefaultCustomers = {
         ...state.defaultCustomers,
         [orderType]: customerId
-      }
-    }));
+      };
+      
+      // Persist to localStorage
+      localStorage.setItem('defaultCustomers', JSON.stringify(newDefaultCustomers));
+      
+      return {
+        defaultCustomers: newDefaultCustomers
+      };
+    });
   },
   getDefaultCustomerForOrderType: (orderType: OrderType) => {
     const state = get();
