@@ -660,28 +660,51 @@ export default {
     },
     getGroupedKotItems() {
       return (kot) => {
+        // Ensure kot_items exists and is an array
+        if (!kot || !kot.kot_items || !Array.isArray(kot.kot_items)) {
+          return [];
+        }
+        
         const items = kot.kot_items.sort((a, b) => a.serve_priority - b.serve_priority);
         const groups = {};
         
-        // Group items by their parent-child relationships
-        items.forEach(item => {
-          if (!item.is_addon) {
-            // This is a main item
-            if (!groups[item.item_grouping]) {
-              groups[item.item_grouping] = {
-                grouping: item.item_grouping,
-                mainItem: item,
-                addons: []
-              };
-            }
+        // First, collect all main items (non-addons) by their item_grouping or item code
+        const mainItems = items.filter(item => !item.is_addon);
+        
+        // Group main items by item_grouping (if available) or item code
+        mainItems.forEach(item => {
+          const groupingKey = item.item_grouping || `group_${item.item}`;
+          
+          if (!groups[groupingKey]) {
+            groups[groupingKey] = {
+              grouping: groupingKey,
+              mainItem: item,
+              addons: []
+            };
+          }
+        });
+        
+        // Now, find add-ons and associate them with their main items
+        const addons = items.filter(item => item.is_addon && item.parent_item);
+        addons.forEach(addon => {
+          // Find the main item for this addon by matching parent_item to main item's item code
+          const mainItemKey = Object.keys(groups).find(key => {
+            const mainItem = groups[key].mainItem;
+            // Match by parent_item field against main item's item code
+            return mainItem && mainItem.item === addon.parent_item;
+          });
+          
+          if (mainItemKey) {
+            groups[mainItemKey].addons.push(addon);
           } else {
-            // This is an add-on, find its parent group
-            const parentGroup = Object.values(groups).find(group => 
-              group.mainItem.item === item.parent_item
-            );
-            if (parentGroup) {
-              parentGroup.addons.push(item);
-            }
+            // If no parent found, treat as standalone item
+            // This shouldn't happen in normal cases where backend properly sets parent_item
+            const orphanKey = `orphan_${addon.item}_${Date.now()}`;
+            groups[orphanKey] = {
+              grouping: orphanKey,
+              mainItem: addon,
+              addons: []
+            };
           }
         });
         
