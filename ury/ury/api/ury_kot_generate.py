@@ -69,55 +69,87 @@ def create_kot_doc(
     else:
         menu = frappe.db.get_value("URY Restaurant", {"branch": branch}, "active_menu")
 
+    # Log items received for debugging
+    frappe.log_error(
+        title=f"KOT Items for {kot_type}",
+        message=f"Invoice: {invoice_id}\nProduction: {production}\nItems received: {json.dumps(items, indent=2)}"
+    )
+
     # Group items by parent-child relationships for better KOT display
     main_items = []
     addon_items = []
-    
+
     for item in items:
         if item.get("is_addon") and item.get("parent_item"):
             addon_items.append(item)
         else:
             main_items.append(item)
-    
+
+    frappe.log_error(
+        title=f"KOT Grouping for {kot_type}",
+        message=f"Invoice: {invoice_id}\nMain items: {len(main_items)}\nAdd-ons: {len(addon_items)}\nMain: {json.dumps(main_items, indent=2)}\nAddons: {json.dumps(addon_items, indent=2)}"
+    )
+
     # Process main items first, then their add-ons
+    items_added_count = 0
     for idx, main_item in enumerate(main_items):
-        course = frappe.db.get_value("URY Menu Item", {"item": main_item["item_code"],"parent":menu}, "course")
-        
-        # Create a unique grouping identifier for this main item and its add-ons
-        item_grouping = f"group_{main_item['item_code']}_{idx}"
-        
-        # Add main item
-        kot_doc.append(
-            "kot_items",
-            {
-                "item": main_item["item_code"],
-                "item_name": main_item["item_name"],
-                "quantity": main_item["qty"],
-                "comments": main_item.get("comments", ""),
-                "course": course,
-                "parent_item": "",
-                "is_addon": 0,
-                "item_grouping": item_grouping
-            },
-        )
-        
-        # Add add-ons for this main item
-        for addon in addon_items:
-            if addon.get("parent_item") == main_item["item_code"]:
-                addon_course = frappe.db.get_value("URY Menu Item", {"item": addon["item_code"],"parent":menu}, "course")
-                kot_doc.append(
-                    "kot_items",
-                    {
-                        "item": addon["item_code"],
-                        "item_name": addon["item_name"],
-                        "quantity": addon["qty"],
-                        "comments": addon.get("comments", ""),
-                        "course": addon_course,
-                        "parent_item": main_item["item_code"],
-                        "is_addon": 1,
-                        "item_grouping": item_grouping
-                    },
-                )
+        try:
+            course = frappe.db.get_value("URY Menu Item", {"item": main_item["item_code"],"parent":menu}, "course")
+
+            # Create a unique grouping identifier for this main item and its add-ons
+            item_grouping = f"group_{main_item['item_code']}_{idx}"
+
+            # Add main item
+            kot_doc.append(
+                "kot_items",
+                {
+                    "item": main_item["item_code"],
+                    "item_name": main_item["item_name"],
+                    "quantity": main_item["qty"],
+                    "comments": main_item.get("comments", ""),
+                    "course": course,
+                    "parent_item": "",
+                    "is_addon": 0,
+                    "item_grouping": item_grouping
+                },
+            )
+            items_added_count += 1
+
+            # Add add-ons for this main item
+            for addon in addon_items:
+                if addon.get("parent_item") == main_item["item_code"]:
+                    try:
+                        addon_course = frappe.db.get_value("URY Menu Item", {"item": addon["item_code"],"parent":menu}, "course")
+                        kot_doc.append(
+                            "kot_items",
+                            {
+                                "item": addon["item_code"],
+                                "item_name": addon["item_name"],
+                                "quantity": addon["qty"],
+                                "comments": addon.get("comments", ""),
+                                "course": addon_course,
+                                "parent_item": main_item["item_code"],
+                                "is_addon": 1,
+                                "item_grouping": item_grouping
+                            },
+                        )
+                        items_added_count += 1
+                    except Exception as addon_error:
+                        frappe.log_error(
+                            title=f"Error Adding Add-on to KOT",
+                            message=f"Invoice: {invoice_id}\nAdd-on: {addon}\nError: {str(addon_error)}"
+                        )
+        except Exception as main_error:
+            frappe.log_error(
+                title=f"Error Adding Main Item to KOT",
+                message=f"Invoice: {invoice_id}\nMain Item: {main_item}\nError: {str(main_error)}"
+            )
+
+    frappe.log_error(
+        title=f"KOT Items Added - {kot_type}",
+        message=f"Invoice: {invoice_id}\nProduction: {production}\nItems added to KOT: {items_added_count}\nKOT Items: {len(kot_doc.kot_items)}"
+    )
+
     kot_doc.insert()
     kot_doc.submit()
 
@@ -186,12 +218,26 @@ def process_items_for_kot(
             productionItemGroups = [
                 item_group.item_group for item_group in productionItemGroupslist
             ]
-            production_items = [
+
+            # Filter main items by production item groups
+            main_production_items = [
                 item
                 for item in kot_items
-                if frappe.db.get_value("Item", item["item_code"], "item_group")
-                in productionItemGroups
+                if not item.get("is_addon") and frappe.db.get_value("Item", item["item_code"], "item_group") in productionItemGroups
             ]
+
+            # Include all add-ons whose parent items are in this production
+            production_items = main_production_items.copy()
+            parent_item_codes = [item["item_code"] for item in main_production_items]
+
+            for item in kot_items:
+                if item.get("is_addon") and item.get("parent_item") in parent_item_codes:
+                    production_items.append(item)
+
+            frappe.log_error(
+                title=f"Production Filtering - {production.name}",
+                message=f"Invoice: {invoice_id}\nTotal items: {len(kot_items)}\nMain items filtered: {len(main_production_items)}\nAdd-ons included: {len(production_items) - len(main_production_items)}\nProduction items: {json.dumps(production_items, indent=2)}"
+            )
 
             if production_items:
                 invoice_exist = frappe.db.exists(
