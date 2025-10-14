@@ -568,8 +568,22 @@ def cancel_order(invoice_id, reason):
 # Method for URY POS
 @frappe.whitelist()
 def make_invoice(customer, payments, cashier, pos_profile,owner, additionalDiscount=None, table=None, invoice=None):
-    order_type = frappe.get_value("POS Invoice", invoice, "order_type")
-    invoice = get_order_invoice(table, invoice, order_type, "Payments")
+    if not invoice:
+        frappe.throw("Invoice ID is required")
+    
+    if not customer:
+        frappe.throw("Customer is required")
+    
+    if not payments or len(payments) == 0:
+        frappe.throw("Payments are required")
+    
+    try:
+        order_type = frappe.get_value("POS Invoice", invoice, "order_type")
+        if not order_type:
+            frappe.throw(f"Order type not found for invoice {invoice}")
+        invoice = get_order_invoice(table, invoice, order_type, "Payments")
+    except Exception as e:
+        frappe.throw(f"Error getting invoice: {str(e)}")
 
     if table:
         restaurant = get_restaurant_and_menu_name(table)
@@ -581,7 +595,7 @@ def make_invoice(customer, payments, cashier, pos_profile,owner, additionalDisco
     invoice.calculate_taxes_and_totals()
 
     for pay in invoice.payments:
-        pay.delete(pay.mode_of_payment)
+        pay.delete()
 
     for d in payments:
         invoice.append(
@@ -589,11 +603,11 @@ def make_invoice(customer, payments, cashier, pos_profile,owner, additionalDisco
         )
 
     invoice.owner = owner
-    invoice.save()
     try:
+        invoice.save()
         invoice.submit()
     except Exception as e:
-        frappe.throw(f"Error while settling order: {e}")
+        frappe.throw(f"Error while settling order: {str(e)}")
     
     
 
