@@ -35,6 +35,43 @@ def should_update_stock(items):
     return False
 
 
+def create_stock_entries_for_invoice(invoice_doc):
+    """
+    Create stock entries for items that maintain stock in the invoice.
+    This handles stock updates manually since we set update_stock = 0.
+    """
+    try:
+        stock_items = []
+        for item in invoice_doc.items:
+            if frappe.db.get_value("Item", item.item_code, "is_stock_item"):
+                stock_items.append(item)
+        
+        if stock_items:
+            # Create a stock entry for the stock items
+            stock_entry = frappe.new_doc("Stock Entry")
+            stock_entry.stock_entry_type = "Material Issue"
+            stock_entry.company = invoice_doc.company
+            
+            # Get default warehouse from POS Profile
+            default_warehouse = frappe.db.get_value("POS Profile", invoice_doc.pos_profile, "warehouse")
+            
+            for item in stock_items:
+                stock_entry.append("items", {
+                    "item_code": item.item_code,
+                    "qty": item.qty,
+                    "s_warehouse": default_warehouse,
+                    "basic_rate": item.rate or 0,
+                })
+            
+            stock_entry.insert()
+            stock_entry.submit()
+            
+    except Exception as e:
+        # Log the error but don't fail the invoice
+        frappe.log_error(f"Stock entry creation failed for invoice {invoice_doc.name}: {str(e)}", "Stock Entry Error")
+        pass
+
+
 @frappe.whitelist()
 def get_order_invoice(table=None, invoiceNo=None, order_type=None, is_payment=None):
     """returns the active invoice linked to the given table"""
@@ -311,8 +348,9 @@ def sync_order(
             ),
         )
 
-    # Set update_stock based on whether any items maintain stock
-    invoice.update_stock = 1 if should_update_stock(invoice.items) else 0
+    # Always set update_stock = 0 to prevent ERPNext from validating all items
+    # Stock updates will be handled separately for items that need them
+    invoice.update_stock = 0
 
     try:
         invoice.save()
@@ -627,13 +665,18 @@ def make_invoice(customer, payments, cashier, pos_profile,owner, additionalDisco
             "payments", dict(mode_of_payment=d["mode_of_payment"], amount=d["amount"])
         )
 
-    # Set update_stock based on whether any items maintain stock
-    invoice_doc.update_stock = 1 if should_update_stock(invoice_doc.items) else 0
+    # Always set update_stock = 0 to prevent ERPNext from validating all items
+    # Stock updates will be handled separately for items that need them
+    invoice_doc.update_stock = 0
 
     invoice_doc.owner = owner
     try:
         invoice_doc.save()
         invoice_doc.submit()
+        
+        # Create stock entries for items that maintain stock
+        create_stock_entries_for_invoice(invoice_doc)
+        
     except Exception as e:
         frappe.throw(f"Error while settling order: {str(e)}")
 
