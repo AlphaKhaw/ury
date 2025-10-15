@@ -20,8 +20,6 @@ def create_order_items(items):
             "qty": item["qty"],
             "item_name": item["item_name"],
             "comments": item.get("comment", item.get("comments", "")),
-            "parent_item": item.get("parent_item", ""),
-            "is_addon": item.get("is_addon", False),
         }
         order_items.append(order_item)
     return order_items
@@ -69,87 +67,31 @@ def create_kot_doc(
     else:
         menu = frappe.db.get_value("URY Restaurant", {"branch": branch}, "active_menu")
 
-    # Log items received for debugging
-    frappe.log_error(
-        title=f"KOT Items for {kot_type}",
-        message=f"Invoice: {invoice_id}\nProduction: {production}\nItems received: {json.dumps(items, indent=2)}"
-    )
+    # Get parent_item and is_addon info from POS Invoice Items
+    invoice_items_map = {}
+    for inv_item in pos_invoice.items:
+        invoice_items_map[inv_item.item_code] = {
+            "parent_item": getattr(inv_item, "parent_item", ""),
+            "is_addon": getattr(inv_item, "is_addon", 0)
+        }
 
-    # Group items by parent-child relationships for better KOT display
-    main_items = []
-    addon_items = []
-
+    # Add all items to KOT with parent_item and is_addon from invoice
     for item in items:
-        if item.get("is_addon") and item.get("parent_item"):
-            addon_items.append(item)
-        else:
-            main_items.append(item)
+        course = frappe.db.get_value("URY Menu Item", {"item": item["item_code"],"parent":menu}, "course")
+        item_info = invoice_items_map.get(item["item_code"], {})
 
-    frappe.log_error(
-        title=f"KOT Grouping for {kot_type}",
-        message=f"Invoice: {invoice_id}\nMain items: {len(main_items)}\nAdd-ons: {len(addon_items)}\nMain: {json.dumps(main_items, indent=2)}\nAddons: {json.dumps(addon_items, indent=2)}"
-    )
-
-    # Process main items first, then their add-ons
-    items_added_count = 0
-    for idx, main_item in enumerate(main_items):
-        try:
-            course = frappe.db.get_value("URY Menu Item", {"item": main_item["item_code"],"parent":menu}, "course")
-
-            # Create a unique grouping identifier for this main item and its add-ons
-            item_grouping = f"group_{main_item['item_code']}_{idx}"
-
-            # Add main item
-            kot_doc.append(
-                "kot_items",
-                {
-                    "item": main_item["item_code"],
-                    "item_name": main_item["item_name"],
-                    "quantity": main_item["qty"],
-                    "comments": main_item.get("comments", ""),
-                    "course": course,
-                    "parent_item": "",
-                    "is_addon": 0,
-                    "item_grouping": item_grouping
-                },
-            )
-            items_added_count += 1
-
-            # Add add-ons for this main item
-            for addon in addon_items:
-                if addon.get("parent_item") == main_item["item_code"]:
-                    try:
-                        addon_course = frappe.db.get_value("URY Menu Item", {"item": addon["item_code"],"parent":menu}, "course")
-                        kot_doc.append(
-                            "kot_items",
-                            {
-                                "item": addon["item_code"],
-                                "item_name": addon["item_name"],
-                                "quantity": addon["qty"],
-                                "comments": addon.get("comments", ""),
-                                "course": addon_course,
-                                "parent_item": main_item["item_code"],
-                                "is_addon": 1,
-                                "item_grouping": item_grouping
-                            },
-                        )
-                        items_added_count += 1
-                    except Exception as addon_error:
-                        frappe.log_error(
-                            title=f"Error Adding Add-on to KOT",
-                            message=f"Invoice: {invoice_id}\nAdd-on: {addon}\nError: {str(addon_error)}"
-                        )
-        except Exception as main_error:
-            frappe.log_error(
-                title=f"Error Adding Main Item to KOT",
-                message=f"Invoice: {invoice_id}\nMain Item: {main_item}\nError: {str(main_error)}"
-            )
-
-    frappe.log_error(
-        title=f"KOT Items Added - {kot_type}",
-        message=f"Invoice: {invoice_id}\nProduction: {production}\nItems added to KOT: {items_added_count}\nKOT Items: {len(kot_doc.kot_items)}"
-    )
-
+        kot_doc.append(
+            "kot_items",
+            {
+                "item": item["item_code"],
+                "item_name": item["item_name"],
+                "quantity": item["qty"],
+                "comments": item.get("comments", ""),
+                "course": course,
+                "parent_item": item_info.get("parent_item", ""),
+                "is_addon": item_info.get("is_addon", 0),
+            },
+        )
     kot_doc.insert()
     kot_doc.submit()
 
@@ -218,26 +160,12 @@ def process_items_for_kot(
             productionItemGroups = [
                 item_group.item_group for item_group in productionItemGroupslist
             ]
-
-            # Filter main items by production item groups
-            main_production_items = [
+            production_items = [
                 item
                 for item in kot_items
-                if not item.get("is_addon") and frappe.db.get_value("Item", item["item_code"], "item_group") in productionItemGroups
+                if frappe.db.get_value("Item", item["item_code"], "item_group")
+                in productionItemGroups
             ]
-
-            # Include all add-ons whose parent items are in this production
-            production_items = main_production_items.copy()
-            parent_item_codes = [item["item_code"] for item in main_production_items]
-
-            for item in kot_items:
-                if item.get("is_addon") and item.get("parent_item") in parent_item_codes:
-                    production_items.append(item)
-
-            frappe.log_error(
-                title=f"Production Filtering - {production.name}",
-                message=f"Invoice: {invoice_id}\nTotal items: {len(kot_items)}\nMain items filtered: {len(main_production_items)}\nAdd-ons included: {len(production_items) - len(main_production_items)}\nProduction items: {json.dumps(production_items, indent=2)}"
-            )
 
             if production_items:
                 invoice_exist = frappe.db.exists(
@@ -462,34 +390,17 @@ def kot_execute(
 
 
 # Compare two arrays and return the items that are different
-# Now properly handles add-ons by comparing parent_item and is_addon fields
 def compare_two_array(array_1, array_2):
     finalarray = []
     for index, x in enumerate(array_1):
-        # Match by item_code, qty, and also consider parent_item and is_addon for add-ons
         a = list(
             filter(
-                lambda y: (
-                    y["item_code"] == x["item_code"]
-                    and y["qty"] == x["qty"]
-                    and y.get("parent_item", "") == x.get("parent_item", "")
-                    and y.get("is_addon", False) == x.get("is_addon", False)
-                ),
+                lambda y: y["item_code"] == x["item_code"] and y["qty"] == x["qty"],
                 array_2,
             )
         )
         if len(a) == 0:
-            # Find items with same item_code and parent_item (for add-ons)
-            b = list(
-                filter(
-                    lambda z: (
-                        z["item_code"] == x["item_code"]
-                        and z.get("parent_item", "") == x.get("parent_item", "")
-                        and z.get("is_addon", False) == x.get("is_addon", False)
-                    ),
-                    array_2
-                )
-            )
+            b = list(filter(lambda z: z["item_code"] == x["item_code"], array_2))
             for qtb in b:
                 x["qty"] = int(x["qty"]) - int(qtb["qty"])
             finalarray.append(x)
@@ -497,17 +408,10 @@ def compare_two_array(array_1, array_2):
 
 
 # Get the items that have been removed from the second array compared to the first array
-# Now properly handles add-ons by considering parent_item and is_addon fields
 def get_removed_items(array_1, array_2):
-    removed_objects = []
-    for obj in array_1:
-        # Check if this exact item (including add-on status and parent) exists in array_2
-        found = any(
-            x["item_code"] == obj["item_code"]
-            and x.get("parent_item", "") == obj.get("parent_item", "")
-            and x.get("is_addon", False) == obj.get("is_addon", False)
-            for x in array_2
-        )
-        if not found:
-            removed_objects.append(obj)
+    removed_objects = [
+        obj
+        for obj in array_1
+        if obj["item_code"] not in [x["item_code"] for x in array_2]
+    ]
     return removed_objects
