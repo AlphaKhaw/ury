@@ -67,18 +67,23 @@ def create_kot_doc(
     else:
         menu = frappe.db.get_value("URY Restaurant", {"branch": branch}, "active_menu")
 
-    # Get parent_item and is_addon info from POS Invoice Items
-    invoice_items_map = {}
-    for inv_item in pos_invoice.items:
-        invoice_items_map[inv_item.item_code] = {
-            "parent_item": getattr(inv_item, "parent_item", ""),
-            "is_addon": getattr(inv_item, "is_addon", 0)
-        }
+    # Create a list of invoice items for matching
+    invoice_items_list = list(pos_invoice.items)
+    used_invoice_items = set()
 
     # Add all items to KOT with parent_item and is_addon from invoice
     for item in items:
         course = frappe.db.get_value("URY Menu Item", {"item": item["item_code"],"parent":menu}, "course")
-        item_info = invoice_items_map.get(item["item_code"], {})
+
+        # Find matching invoice item that hasn't been used yet
+        parent_item = ""
+        is_addon = 0
+        for idx, inv_item in enumerate(invoice_items_list):
+            if idx not in used_invoice_items and inv_item.item_code == item["item_code"]:
+                parent_item = getattr(inv_item, "parent_item", "")
+                is_addon = getattr(inv_item, "is_addon", 0)
+                used_invoice_items.add(idx)
+                break
 
         kot_doc.append(
             "kot_items",
@@ -88,8 +93,8 @@ def create_kot_doc(
                 "quantity": item["qty"],
                 "comments": item.get("comments", ""),
                 "course": course,
-                "parent_item": item_info.get("parent_item", ""),
-                "is_addon": item_info.get("is_addon", 0),
+                "parent_item": parent_item,
+                "is_addon": is_addon,
             },
         )
     kot_doc.insert()

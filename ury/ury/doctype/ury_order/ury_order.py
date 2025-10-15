@@ -17,6 +17,24 @@ class URYOrder(Document):
     pass
 
 
+def should_update_stock(items):
+    """
+    Check if any items in the list maintain stock.
+    Returns True if at least one item maintains stock, False otherwise.
+    """
+    if not items:
+        return False
+
+    for item in items:
+        item_code = item.get("item_code") or item.get("item")
+        if item_code:
+            maintains_stock = frappe.db.get_value("Item", item_code, "is_stock_item")
+            if maintains_stock:
+                return True
+
+    return False
+
+
 @frappe.whitelist()
 def get_order_invoice(table=None, invoiceNo=None, order_type=None, is_payment=None):
     """returns the active invoice linked to the given table"""
@@ -54,7 +72,7 @@ def get_order_invoice(table=None, invoiceNo=None, order_type=None, is_payment=No
             )
 
             invoice.is_pos = 1
-            invoice.update_stock = 1
+            invoice.update_stock = 0  # Will be set based on items later
             invoice.restaurant = restaurant
             invoice.branch = branch
 
@@ -91,7 +109,7 @@ def get_order_invoice(table=None, invoiceNo=None, order_type=None, is_payment=No
         else:
             invoice = frappe.new_doc("POS Invoice")
             invoice.is_pos = 1
-            invoice.update_stock = 1
+            invoice.update_stock = 0  # Will be set based on items later
         
         branch = getBranch()
         restaurant = frappe.db.get_value("URY Restaurant", {"branch": branch}, "name")
@@ -292,6 +310,9 @@ def sync_order(
                 **({"is_addon": d.get("is_addon")} if d.get("is_addon") is not None else {}),
             ),
         )
+
+    # Set update_stock based on whether any items maintain stock
+    invoice.update_stock = 1 if should_update_stock(invoice.items) else 0
 
     try:
         invoice.save()
@@ -605,6 +626,9 @@ def make_invoice(customer, payments, cashier, pos_profile,owner, additionalDisco
         invoice_doc.append(
             "payments", dict(mode_of_payment=d["mode_of_payment"], amount=d["amount"])
         )
+
+    # Set update_stock based on whether any items maintain stock
+    invoice_doc.update_stock = 1 if should_update_stock(invoice_doc.items) else 0
 
     invoice_doc.owner = owner
     try:
