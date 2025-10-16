@@ -342,6 +342,9 @@ def sync_order(
                 cost_center = frappe.db.get_value(
                     "POS Profile", pos_profile, "cost_center"
                     ),
+                # Add parent-child relationship fields
+                **({"parent_item": d.get("parent_item")} if d.get("parent_item") else {}),
+                **({"is_addon": d.get("is_addon")} if d.get("is_addon") is not None else {}),
             ),
         )
 

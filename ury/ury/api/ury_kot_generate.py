@@ -20,6 +20,8 @@ def create_order_items(items):
             "qty": item["qty"],
             "item_name": item["item_name"],
             "comments": item.get("comment", item.get("comments", "")),
+            "parent_item": item.get("parent_item", ""),
+            "is_addon": item.get("is_addon", False),
         }
         order_items.append(order_item)
     return order_items
@@ -126,32 +128,73 @@ def process_items_for_kot(
     )
 
     if productions:
-        # Check if there's an existing KOT for this invoice
-        invoice_exist = frappe.db.exists(
-            "URY KOT",
-            {
-                "invoice": invoice_id,
-                "docstatus": 1,
-            },
-        )
-        if invoice_exist:
-            kot_type = "Order Modified"
-
-        # Create KOT for all items, using the first production unit
-        # This ensures all items get KOT regardless of item group configuration
-        primary_production = productions[0]
+        all_production_item_groups = get_all_production_item_groups(pos_profile.branch)
         
-        create_kot_doc(
-            invoice_id,
-            customer,
-            restaurant_table,
-            kot_items,  # Use all items instead of filtering
-            kot_type,
-            comments,
-            pos_profile_id,
-            kot_naming_series,
-            primary_production.name,
-        )
+        # Check if any items are not configured in production item groups
+        unconfigured_items = []
+        for item in kot_items:
+            item_group = frappe.db.get_value("Item", item["item_code"], "item_group")
+            if item_group not in all_production_item_groups:
+                unconfigured_items.append({
+                    "item_code": item["item_code"],
+                    "item_name": item["item_name"],
+                    "item_group": item_group
+                })
+        
+        # If there are unconfigured items, show a helpful message
+        if unconfigured_items:
+            item_list = ", ".join([f"{item['item_name']} ({item['item_group']})" for item in unconfigured_items])
+            frappe.msgprint(
+                f"The following items are not assigned to any production unit: {item_list}. "
+                f"Please configure their item groups in URY Production Unit settings to generate KOTs.",
+                title="Items Not Configured for KOT",
+                indicator="yellow"
+            )
+        
+        # Create separate KOTs for each production unit
+        for production in productions:
+            productionItemGroupslist = frappe.get_all(
+                "URY Production Item Groups",
+                fields=["item_group"],
+                filters={
+                    "parent": production.name,
+                    "parenttype": "URY Production Unit",
+                },
+                order_by="idx",
+            )
+            productionItemGroups = [
+                item_group.item_group for item_group in productionItemGroupslist
+            ]
+            production_items = [
+                item
+                for item in kot_items
+                if frappe.db.get_value("Item", item["item_code"], "item_group")
+                in productionItemGroups
+            ]
+
+            if production_items:
+                invoice_exist = frappe.db.exists(
+                    "URY KOT",
+                    {
+                        "invoice": invoice_id,
+                        "docstatus": 1,
+                        "production": production.name,
+                    },
+                )
+                if invoice_exist:
+                    kot_type = "Order Modified"
+
+                create_kot_doc(
+                    invoice_id,
+                    customer,
+                    restaurant_table,
+                    production_items,
+                    kot_type,
+                    comments,
+                    pos_profile_id,
+                    kot_naming_series,
+                    production.name,
+                )
     else:
         frappe.throw(
             "Create URY Production unit against POS Profile: %s " % pos_profile.name
@@ -357,12 +400,26 @@ def compare_two_array(array_1, array_2):
     for index, x in enumerate(array_1):
         a = list(
             filter(
-                lambda y: y["item_code"] == x["item_code"] and y["qty"] == x["qty"],
+                lambda y: (
+                    y["item_code"] == x["item_code"]
+                    and y["qty"] == x["qty"]
+                    and y.get("parent_item", "") == x.get("parent_item", "")
+                    and y.get("is_addon", False) == x.get("is_addon", False)
+                ),
                 array_2,
             )
         )
         if len(a) == 0:
-            b = list(filter(lambda z: z["item_code"] == x["item_code"], array_2))
+            b = list(
+                filter(
+                    lambda z: (
+                        z["item_code"] == x["item_code"]
+                        and z.get("parent_item", "") == x.get("parent_item", "")
+                        and z.get("is_addon", False) == x.get("is_addon", False)
+                    ),
+                    array_2
+                )
+            )
             for qtb in b:
                 x["qty"] = int(x["qty"]) - int(qtb["qty"])
             finalarray.append(x)
@@ -371,9 +428,15 @@ def compare_two_array(array_1, array_2):
 
 # Get the items that have been removed from the second array compared to the first array
 def get_removed_items(array_1, array_2):
-    removed_objects = [
-        obj
-        for obj in array_1
-        if obj["item_code"] not in [x["item_code"] for x in array_2]
-    ]
+    removed_objects = []
+    for obj in array_1:
+        # Check if this exact item (including add-on status and parent) exists in array_2
+        found = any(
+            x["item_code"] == obj["item_code"]
+            and x.get("parent_item", "") == obj.get("parent_item", "")
+            and x.get("is_addon", False) == obj.get("is_addon", False)
+            for x in array_2
+        )
+        if not found:
+            removed_objects.append(obj)
     return removed_objects
