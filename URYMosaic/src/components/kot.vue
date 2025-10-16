@@ -682,52 +682,80 @@ export default {
         const groups = {};
         let groupCounter = 0;
 
-        // First pass: Create groups for all main items (non-addon items)
-        items.forEach((item, index) => {
-          if (!item.is_addon) {
-            // This is a main item
-            // Use item_grouping if available, otherwise create a unique sequential key
-            const groupingKey = item.item_grouping || `main_group_${groupCounter++}`;
+        // Helper function to check if an item should be grouped as an addon
+        const isAddonItem = (itemName) => {
+          const name = itemName.toLowerCase();
+          return name.includes('sugar') || 
+                 name.includes('milk') || 
+                 name.includes('oat milk') ||
+                 name === 'sugar' ||
+                 name === 'oat milk';
+        };
 
-            if (!groups[groupingKey]) {
-              groups[groupingKey] = {
-                grouping: groupingKey,
+        // Helper function to find potential parent item for addon
+        const findParentForAddon = (addonItem, allItems) => {
+          // Look for items that come before this addon in the list
+          const addonIndex = allItems.findIndex(item => item === addonItem);
+          for (let i = addonIndex - 1; i >= 0; i--) {
+            const potentialParent = allItems[i];
+            if (!isAddonItem(potentialParent.item_name)) {
+              return potentialParent;
+            }
+          }
+          return null;
+        };
+
+        // Process items sequentially, grouping addons with preceding main items
+        items.forEach((item, index) => {
+          if (isAddonItem(item.item_name)) {
+            // This is an addon - try to group with previous main item
+            const parentItem = findParentForAddon(item, items);
+            
+            if (parentItem) {
+              // Find existing group for parent or create one
+              let parentGroupKey = null;
+              for (const key in groups) {
+                if (groups[key].mainItem === parentItem) {
+                  parentGroupKey = key;
+                  break;
+                }
+              }
+              
+              if (parentGroupKey) {
+                groups[parentGroupKey].addons.push(item);
+              } else {
+                // Create new group for parent and add addon
+                const newGroupKey = `group_${groupCounter++}`;
+                groups[newGroupKey] = {
+                  grouping: newGroupKey,
+                  mainItem: parentItem,
+                  addons: [item]
+                };
+              }
+            } else {
+              // No parent found, treat as standalone item
+              const standaloneKey = `standalone_${groupCounter++}`;
+              groups[standaloneKey] = {
+                grouping: standaloneKey,
                 mainItem: item,
                 addons: []
               };
             }
-          }
-        });
-
-        // Second pass: Assign add-ons to their parent groups
-        items.forEach(item => {
-          if (item.is_addon && item.parent_item) {
-            // This is an add-on item, find its parent group
-            let foundGroup = false;
-
-            // If item has item_grouping, try to find matching group first
-            if (item.item_grouping && groups[item.item_grouping]) {
-              groups[item.item_grouping].addons.push(item);
-              foundGroup = true;
-            }
-
-            // If not found by grouping, search for parent by item code
-            if (!foundGroup) {
-              for (const key in groups) {
-                if (groups[key].mainItem && groups[key].mainItem.item === item.parent_item) {
-                  groups[key].addons.push(item);
-                  foundGroup = true;
-                  break;
-                }
+          } else {
+            // This is a main item - check if it already has a group
+            let alreadyGrouped = false;
+            for (const key in groups) {
+              if (groups[key].mainItem === item) {
+                alreadyGrouped = true;
+                break;
               }
             }
-
-            // If still not found, create orphaned add-on group
-            if (!foundGroup) {
-              console.warn('Orphaned add-on found:', item);
-              const orphanKey = `orphan_${groupCounter++}`;
-              groups[orphanKey] = {
-                grouping: orphanKey,
+            
+            if (!alreadyGrouped) {
+              // Create new group for this main item
+              const newGroupKey = `group_${groupCounter++}`;
+              groups[newGroupKey] = {
+                grouping: newGroupKey,
                 mainItem: item,
                 addons: []
               };
@@ -736,7 +764,7 @@ export default {
         });
 
         const result = Object.values(groups);
-        console.log('Grouped KOT items for', kot.name, ':', result);
+        console.log('Heuristically grouped KOT items for', kot.name, ':', result);
         return result;
       };
     },

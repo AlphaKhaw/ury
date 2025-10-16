@@ -20,8 +20,6 @@ def create_order_items(items):
             "qty": item["qty"],
             "item_name": item["item_name"],
             "comments": item.get("comment", item.get("comments", "")),
-            "parent_item": item.get("parent_item", ""),
-            "is_addon": item.get("is_addon", False),
         }
         order_items.append(order_item)
     return order_items
@@ -69,23 +67,9 @@ def create_kot_doc(
     else:
         menu = frappe.db.get_value("URY Restaurant", {"branch": branch}, "active_menu")
 
-    # Create a list of invoice items for matching
-    invoice_items_list = list(pos_invoice.items)
-    used_invoice_items = set()
-
-    # Add all items to KOT with parent_item and is_addon from invoice
+    # Add all items to KOT as simple list
     for item in items:
         course = frappe.db.get_value("URY Menu Item", {"item": item["item_code"],"parent":menu}, "course")
-
-        # Find matching invoice item that hasn't been used yet
-        parent_item = ""
-        is_addon = 0
-        for idx, inv_item in enumerate(invoice_items_list):
-            if idx not in used_invoice_items and inv_item.item_code == item["item_code"]:
-                parent_item = getattr(inv_item, "parent_item", "")
-                is_addon = getattr(inv_item, "is_addon", 0)
-                used_invoice_items.add(idx)
-                break
 
         kot_doc.append(
             "kot_items",
@@ -95,8 +79,6 @@ def create_kot_doc(
                 "quantity": item["qty"],
                 "comments": item.get("comments", ""),
                 "course": course,
-                "parent_item": parent_item,
-                "is_addon": is_addon,
             },
         )
     kot_doc.insert()
@@ -402,26 +384,12 @@ def compare_two_array(array_1, array_2):
     for index, x in enumerate(array_1):
         a = list(
             filter(
-                lambda y: (
-                    y["item_code"] == x["item_code"]
-                    and y["qty"] == x["qty"]
-                    and y.get("parent_item", "") == x.get("parent_item", "")
-                    and y.get("is_addon", False) == x.get("is_addon", False)
-                ),
+                lambda y: y["item_code"] == x["item_code"] and y["qty"] == x["qty"],
                 array_2,
             )
         )
         if len(a) == 0:
-            b = list(
-                filter(
-                    lambda z: (
-                        z["item_code"] == x["item_code"]
-                        and z.get("parent_item", "") == x.get("parent_item", "")
-                        and z.get("is_addon", False) == x.get("is_addon", False)
-                    ),
-                    array_2
-                )
-            )
+            b = list(filter(lambda z: z["item_code"] == x["item_code"], array_2))
             for qtb in b:
                 x["qty"] = int(x["qty"]) - int(qtb["qty"])
             finalarray.append(x)
@@ -430,15 +398,9 @@ def compare_two_array(array_1, array_2):
 
 # Get the items that have been removed from the second array compared to the first array
 def get_removed_items(array_1, array_2):
-    removed_objects = []
-    for obj in array_1:
-        # Check if this exact item (including add-on status and parent) exists in array_2
-        found = any(
-            x["item_code"] == obj["item_code"]
-            and x.get("parent_item", "") == obj.get("parent_item", "")
-            and x.get("is_addon", False) == obj.get("is_addon", False)
-            for x in array_2
-        )
-        if not found:
-            removed_objects.append(obj)
+    removed_objects = [
+        obj
+        for obj in array_1
+        if obj["item_code"] not in [x["item_code"] for x in array_2]
+    ]
     return removed_objects
