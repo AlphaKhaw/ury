@@ -126,59 +126,32 @@ def process_items_for_kot(
     )
 
     if productions:
-        all_production_item_groups = get_all_production_item_groups(pos_profile.branch)
+        # Check if there's an existing KOT for this invoice
+        invoice_exist = frappe.db.exists(
+            "URY KOT",
+            {
+                "invoice": invoice_id,
+                "docstatus": 1,
+            },
+        )
+        if invoice_exist:
+            kot_type = "Order Modified"
+
+        # Create KOT for all items, using the first production unit
+        # This ensures all items get KOT regardless of item group configuration
+        primary_production = productions[0]
         
-        # Iterate through each item and check if item group belongs to a production unit
-        for item in kot_items:
-            item_group = frappe.db.get_value("Item", item["item_code"], "item_group")
-            item_code = item["item_code"]
-            if item_group not in all_production_item_groups:
-                frappe.msgprint(
-                    f"Item group '{item_group}' for item '{item_code}' is not in any production."
-                )
-        for production in productions:
-            productionItemGroupslist = frappe.get_all(
-                "URY Production Item Groups",
-                fields=["item_group"],
-                filters={
-                    "parent": production.name,
-                    "parenttype": "URY Production Unit",
-                },
-                order_by="idx",
-            )
-            productionItemGroups = [
-                item_group.item_group for item_group in productionItemGroupslist
-            ]
-            production_items = [
-                item
-                for item in kot_items
-                if frappe.db.get_value("Item", item["item_code"], "item_group")
-                in productionItemGroups
-            ]
-
-            if production_items:
-                invoice_exist = frappe.db.exists(
-                    "URY KOT",
-                    {
-                        "invoice": invoice_id,
-                        "docstatus": 1,
-                        "production": production.name,
-                    },
-                )
-                if invoice_exist:
-                    kot_type = "Order Modified"
-
-                create_kot_doc(
-                    invoice_id,
-                    customer,
-                    restaurant_table,
-                    production_items,
-                    kot_type,
-                    comments,
-                    pos_profile_id,
-                    kot_naming_series,
-                    production.name,
-                )
+        create_kot_doc(
+            invoice_id,
+            customer,
+            restaurant_table,
+            kot_items,  # Use all items instead of filtering
+            kot_type,
+            comments,
+            pos_profile_id,
+            kot_naming_series,
+            primary_production.name,
+        )
     else:
         frappe.throw(
             "Create URY Production unit against POS Profile: %s " % pos_profile.name
