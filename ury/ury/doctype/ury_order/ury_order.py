@@ -292,6 +292,8 @@ def sync_order(
             "item_name": item.item_name,
             "qty": item.qty,
             "comments": "",
+            "parent_item": getattr(item, "parent_item", ""),
+            "is_addon": getattr(item, "is_addon", False),
         }
         past_item.append(previous_item)
         
