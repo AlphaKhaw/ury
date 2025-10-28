@@ -354,10 +354,10 @@ export const usePOSStore = create<POSStore>((set, get) => ({
       set({ menuItems });
 
       // Now check stock availability for stock-maintaining items
-      if (posProfile.warehouse) {
+      if (get().posProfile?.warehouse) {
         const itemsToCheck = menuItems.map(item => ({
           item_code: item.item,
-          warehouse: posProfile.warehouse
+          warehouse: get().posProfile.warehouse
         }));
         await get().checkBulkStockAvailability(itemsToCheck);
       }

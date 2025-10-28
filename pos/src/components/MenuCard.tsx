@@ -73,9 +73,11 @@ const MenuCard: FC<MenuCardProps> = ({
           </h3>
         </div>
 
-        {/* Stock information section - fixed height for 1 line */}
+        {/* Stock information or course section - fixed height for 1 line */}
         <div className="h-5 mt-1">
-          {typeof stockQty !== 'undefined' && !stockLoading && (
+          {stockLoading ? (
+            <span className="text-xs text-gray-400">Checking stock...</span>
+          ) : typeof stockQty !== 'undefined' ? (
             <div className="flex items-center gap-1">
               {hasStock ? (
                 <span className="text-xs text-green-600">✓ {stockQty} in stock</span>
@@ -83,25 +85,12 @@ const MenuCard: FC<MenuCardProps> = ({
                 <span className="text-xs text-red-600">✗ Out of stock</span>
               )}
             </div>
-          )}
-          {stockLoading && (
-            <span className="text-xs text-gray-400">Checking stock...</span>
-          )}
-          {typeof stockQty === 'undefined' && !stockLoading && (
+          ) : (
             <p className="text-xs text-gray-500 truncate" title={course}>
               {course || ' '}
             </p>
           )}
         </div>
-
-        {/* Course section - fixed height for 1 line when no stock info */}
-        {typeof stockQty === 'undefined' && !stockLoading && (
-          <div className="h-5 mt-1">
-            <p className="text-xs text-gray-500 truncate" title={course}>
-              {course || ' '}
-            </p>
-          </div>
-        )}
 
         {/* Price section - pushed to bottom */}
         <div className="mt-auto pt-2">
