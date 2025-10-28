@@ -10,6 +10,9 @@ interface MenuCardProps {
   item: string;
   onClick?: () => void;
   disabled?: boolean;
+  stockQty?: number;
+  hasStock?: boolean;
+  stockLoading?: boolean;
 }
 
 const MenuCard: FC<MenuCardProps> = ({ 
@@ -20,13 +23,17 @@ const MenuCard: FC<MenuCardProps> = ({
   course, 
   item, 
   onClick,
-  disabled 
+  disabled,
+  stockQty,
+  hasStock,
+  stockLoading
 }) => {
   return (
     <div
       className={cn(
         "bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer h-56 flex flex-col",
-        disabled && "opacity-50 cursor-not-allowed pointer-events-none"
+        disabled && "opacity-50 cursor-not-allowed pointer-events-none",
+        !hasStock && typeof stockQty !== 'undefined' && !stockLoading && "bg-red-50"
       )}
       onClick={disabled ? undefined : onClick}
     >
@@ -66,12 +73,35 @@ const MenuCard: FC<MenuCardProps> = ({
           </h3>
         </div>
 
-        {/* Course section - fixed height for 1 line */}
+        {/* Stock information section - fixed height for 1 line */}
         <div className="h-5 mt-1">
-          <p className="text-xs text-gray-500 truncate" title={course}>
-            {course || ' '}
-          </p>
+          {typeof stockQty !== 'undefined' && !stockLoading && (
+            <div className="flex items-center gap-1">
+              {hasStock ? (
+                <span className="text-xs text-green-600">✓ {stockQty} in stock</span>
+              ) : (
+                <span className="text-xs text-red-600">✗ Out of stock</span>
+              )}
+            </div>
+          )}
+          {stockLoading && (
+            <span className="text-xs text-gray-400">Checking stock...</span>
+          )}
+          {typeof stockQty === 'undefined' && !stockLoading && (
+            <p className="text-xs text-gray-500 truncate" title={course}>
+              {course || ' '}
+            </p>
+          )}
         </div>
+
+        {/* Course section - fixed height for 1 line when no stock info */}
+        {typeof stockQty === 'undefined' && !stockLoading && (
+          <div className="h-5 mt-1">
+            <p className="text-xs text-gray-500 truncate" title={course}>
+              {course || ' '}
+            </p>
+          </div>
+        )}
 
         {/* Price section - pushed to bottom */}
         <div className="mt-auto pt-2">

@@ -18,7 +18,9 @@ const MenuList: React.FC<MenuListProps> = ({ onItemClick }) => {
     quickFilter,
     fetchMenuItems,
     isMenuInteractionDisabled,
-    isOrderInteractionDisabled
+    isOrderInteractionDisabled,
+    stockAvailability,
+    stockLoading
   } = usePOSStore();
 
   useEffect(() => {
@@ -78,6 +80,9 @@ const MenuList: React.FC<MenuListProps> = ({ onItemClick }) => {
                 item={item.item}
                 onClick={() => onItemClick(item)}
                 disabled={isInteractionDisabled}
+                stockQty={stockAvailability[item.id]?.actual_qty}
+                hasStock={stockAvailability[item.id]?.actual_qty > 0}
+                stockLoading={stockLoading[item.id]}
               />
             ))}
           </div>

@@ -38,6 +38,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [discountType] = useState<'percentage'>('percentage'); // Only percentage now
   const [discountValue, setDiscountValue] = useState<string>('');
+  const [selectedFixedDiscount, setSelectedFixedDiscount] = useState<string>('');
   const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
   const [paymentInputs, setPaymentInputs] = useState<{ [mode: string]: string }>({});
 
@@ -56,7 +57,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
   const paymentsTotal = payments.reduce((sum, p: any) => sum + p.amount, 0);
 
   const handleApplyDiscount = () => {
-    const value = parseFloat(discountValue);
+    const value = selectedFixedDiscount ? parseFloat(selectedFixedDiscount) : parseFloat(discountValue);
     if (isNaN(value) || value <= 0) {
       setError('Please enter a valid discount value');
       return;
@@ -156,14 +157,20 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                 Apply Discount
               </h3>
               <div className="flex gap-2">
-                <Input
-                  type="number"
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
-                  placeholder={'Enter %'}
-                  size="sm"
-                  className="flex-1"
-                />
+                <select
+                  value={selectedFixedDiscount}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSelectedFixedDiscount(value);
+                    setDiscountValue(value);
+                  }}
+                  className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select Discount %</option>
+                  <option value="10">10%</option>
+                  <option value="20">20%</option>
+                  <option value="50">50%</option>
+                </select>
                 <Button
                   onClick={handleApplyDiscount}
                   variant="default"

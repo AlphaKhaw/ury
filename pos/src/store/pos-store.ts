@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { storage } from '../lib/storage';
 import { getRestaurantMenu, getAggregatorMenu, MenuItem as APIMenuItem } from '../lib/menu-api';
+import { getBulkStockAvailability, StockAvailability, getStockAvailability } from '../lib/stock-api';
 import { getCurrencyInfo, PosProfileCombined, getCombinedPosProfile } from '../lib/pos-profile-api';
 import { getMenuCourses } from '../lib/menu-course-api';
 import { getCustomerGroups, getCustomerTerritories, searchCustomers } from '../lib/customer-api';
@@ -120,6 +121,8 @@ interface POSState {
   isInitializing: boolean;
   orderComment: string;
   defaultCustomers: Record<OrderType, string | null>;
+  stockAvailability: Record<string, StockAvailability>;
+  stockLoading: Record<string, boolean>;
 }
 
 interface POSStore extends POSState {
@@ -164,6 +167,10 @@ interface POSStore extends POSState {
   setDefaultCustomerForOrderType: (orderType: OrderType, customerId: string | null) => void;
   getDefaultCustomerForOrderType: (orderType: OrderType) => string | null;
   setDefaultCustomerForCurrentOrderType: () => Promise<void>;
+  checkStockAvailability: (itemCode: string, warehouse: string) => Promise<StockAvailability>;
+  checkBulkStockAvailability: (items: Array<{item_code: string, warehouse: string}>) => Promise<void>;
+  updateStockAvailability: (itemCode: string, stockInfo: StockAvailability) => void;
+  setStockLoading: (itemCode: string, loading: boolean) => void;
 }
 
 const generateUniqueId = (item: OrderItem): string => {
@@ -229,6 +236,8 @@ export const usePOSStore = create<POSStore>((set, get) => ({
       'Aggregators': null,
     };
   })(),
+  stockAvailability: {},
+  stockLoading: {},
 
   initializeApp: async () => {
     try {
@@ -343,6 +352,15 @@ export const usePOSStore = create<POSStore>((set, get) => ({
       }));
 
       set({ menuItems });
+
+      // Now check stock availability for stock-maintaining items
+      if (posProfile.warehouse) {
+        const itemsToCheck = menuItems.map(item => ({
+          item_code: item.item,
+          warehouse: posProfile.warehouse
+        }));
+        await get().checkBulkStockAvailability(itemsToCheck);
+      }
     } catch (error) {
       set({ error: 'Failed to load menu items' });
       console.error('Error loading menu items:', error);
@@ -863,5 +881,74 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   isOrderInteractionDisabled: () => {
     const state = get();
     return state.orderLoading;
+  },
+
+  checkStockAvailability: async (itemCode: string, warehouse: string) => {
+    try {
+      set((state) => ({
+        stockLoading: { ...state.stockLoading, [itemCode]: true }
+      }));
+      
+      const stockInfo = await getStockAvailability(itemCode, warehouse);
+      
+      set((state) => ({
+        stockAvailability: { ...state.stockAvailability, [itemCode]: stockInfo },
+        stockLoading: { ...state.stockLoading, [itemCode]: false }
+      }));
+      
+      return stockInfo;
+    } catch (error) {
+      console.error(`Error checking stock availability for item ${itemCode}:`, error);
+      set((state) => ({
+        stockLoading: { ...state.stockLoading, [itemCode]: false }
+      }));
+      throw error;
+    }
+  },
+
+  checkBulkStockAvailability: async (items: Array<{item_code: string, warehouse: string}>) => {
+    if (!items.length) return;
+    
+    try {
+      // Set loading state for all items
+      set((state) => {
+        const newStockLoading = { ...state.stockLoading };
+        items.forEach(item => {
+          newStockLoading[item.item_code] = true;
+        });
+        return { stockLoading: newStockLoading };
+      });
+      
+      const stockInfo = await getBulkStockAvailability(items);
+      
+      set((state) => ({
+        stockAvailability: { ...state.stockAvailability, ...stockInfo },
+        stockLoading: { ...state.stockLoading, ...Object.fromEntries(
+          items.map(item => [item.item_code, false])
+        ) }
+      }));
+    } catch (error) {
+      console.error('Error checking bulk stock availability:', error);
+      set((state) => {
+        const newStockLoading = { ...state.stockLoading };
+        items.forEach(item => {
+          newStockLoading[item.item_code] = false;
+        });
+        return { stockLoading: newStockLoading };
+      });
+      throw error;
+    }
+  },
+
+  updateStockAvailability: (itemCode: string, stockInfo: StockAvailability) => {
+    set((state) => ({
+      stockAvailability: { ...state.stockAvailability, [itemCode]: stockInfo }
+    }));
+  },
+
+  setStockLoading: (itemCode: string, loading: boolean) => {
+    set((state) => ({
+      stockLoading: { ...state.stockLoading, [itemCode]: loading }
+    }));
   }
 })); 

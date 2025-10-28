@@ -718,3 +718,31 @@ def validate_pos_close(pos_profile):
     
     return "Success"
 
+
+@frappe.whitelist()
+def get_bulk_stock_availability(items):
+    """
+    Get stock availability for multiple items
+    items: List of dictionaries with 'item_code' and 'warehouse' keys
+    Returns: Dictionary with item codes as keys and stock availability as values
+    """
+    from erpnext.accounts.doctype.pos_invoice.pos_invoice import get_stock_availability
+    
+    result = {}
+    for item_data in items:
+        item_code = item_data.get('item_code')
+        warehouse = item_data.get('warehouse')
+        try:
+            stock_info = get_stock_availability(item_code, warehouse)
+            result[item_code] = stock_info
+        except Exception as e:
+            # If there's an error for a specific item, return 0 availability
+            result[item_code] = {
+                'item_code': item_code,
+                'actual_qty': 0,
+                'projected_qty': 0,
+                'reserved_qty': 0
+            }
+    
+    return result
+
