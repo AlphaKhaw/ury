@@ -24,17 +24,15 @@ export const getLoggedUser = async (): Promise<LoggedUserResponse> => {
 
 export const getUserRoles = async (email: string): Promise<{ roles: string[]; full_name: string }> => {
   try {
-    // Get user details using db.getDoc
+    // Get user roles using the proper API
+    const rolesResponse = await call.post('frappe.core.doctype.user.user.get_all_roles', { user: email });
+    
+    // Get user details for full_name
     const userDoc = await db.getDoc<UserDoc>('User', email);
     
-    if (!userDoc || !userDoc.roles) {
-      return { roles: [], full_name: '' };
-    }
-
-    // Extract role names and full_name from the user doc
     return {
-      roles: userDoc.roles.map(role => role.role),
-      full_name: userDoc.full_name
+      roles: rolesResponse.message || [],
+      full_name: userDoc.full_name || ''
     };
   } catch (error) {
     console.error('Error getting user details:', error);
