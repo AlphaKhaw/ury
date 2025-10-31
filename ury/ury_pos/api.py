@@ -726,7 +726,10 @@ def get_bulk_stock_availability(items):
     items: List of dictionaries with 'item_code' and 'warehouse' keys
     Returns: Dictionary with item codes as keys and stock availability as values
     """
+    import frappe
     from erpnext.accounts.doctype.pos_invoice.pos_invoice import get_stock_availability
+    
+    frappe.logger().info(f"DEBUG: get_bulk_stock_availability called with items: {items}")
     
     result = {}
     for item_data in items:
@@ -734,8 +737,27 @@ def get_bulk_stock_availability(items):
         warehouse = item_data.get('warehouse')
         try:
             stock_info = get_stock_availability(item_code, warehouse)
-            result[item_code] = stock_info
+            frappe.logger().info(f"DEBUG: stock_info for {item_code}: {stock_info}, type: {type(stock_info)}")
+            
+            # Convert ERPNext format [actual_qty, has_stock] to object format
+            if isinstance(stock_info, list) and len(stock_info) >= 2:
+                actual_qty = stock_info[0] or 0
+                result[item_code] = {
+                    'item_code': item_code,
+                    'actual_qty': actual_qty,
+                    'projected_qty': actual_qty,  # Use actual_qty as fallback
+                    'reserved_qty': 0
+                }
+                frappe.logger().info(f"DEBUG: Converted result for {item_code}: {result[item_code]}")
+            else:
+                result[item_code] = {
+                    'item_code': item_code,
+                    'actual_qty': 0,
+                    'projected_qty': 0,
+                    'reserved_qty': 0
+                }
         except Exception as e:
+            frappe.logger().error(f"DEBUG: Error for item {item_code}: {str(e)}")
             # If there's an error for a specific item, return 0 availability
             result[item_code] = {
                 'item_code': item_code,
@@ -744,5 +766,5 @@ def get_bulk_stock_availability(items):
                 'reserved_qty': 0
             }
     
+    frappe.logger().info(f"DEBUG: Final result: {result}")
     return result
-

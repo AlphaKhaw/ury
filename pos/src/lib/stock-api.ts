@@ -37,13 +37,36 @@ export interface BulkStockAvailabilityResponse {
 
 export const getBulkStockAvailability = async (items: Array<{item_code: string, warehouse: string}>) => {
   try {
-    const response = await call.post<BulkStockAvailabilityResponse>(
-      'ury.ury_pos.api.get_bulk_stock_availability', // This API needs to be created
+    const response = await call.post<any>(
+      'ury.ury_pos.api.get_bulk_stock_availability',
       {
         items: items
       }
     );
-    return response.message;
+    
+    // Convert ERPNext format [actual_qty, has_stock] to our expected object format
+    const convertedResult: Record<string, StockAvailability> = {};
+    
+    for (const [itemCode, stockData] of Object.entries(response.message)) {
+      if (Array.isArray(stockData) && stockData.length >= 2) {
+        const actualQty = stockData[0] || 0;
+        convertedResult[itemCode] = {
+          item_code: itemCode,
+          actual_qty: actualQty,
+          projected_qty: actualQty,
+          reserved_qty: 0
+        };
+      } else {
+        convertedResult[itemCode] = {
+          item_code: itemCode,
+          actual_qty: 0,
+          projected_qty: 0,
+          reserved_qty: 0
+        };
+      }
+    }
+    
+    return convertedResult;
   } catch (error: any) {
     if (error._server_messages) {
       const messages = JSON.parse(error._server_messages);
