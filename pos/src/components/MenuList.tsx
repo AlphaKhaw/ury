@@ -80,9 +80,9 @@ const MenuList: React.FC<MenuListProps> = ({ onItemClick }) => {
                 item={item.item}
                 onClick={() => onItemClick(item)}
                 disabled={isInteractionDisabled}
-                stockQty={stockAvailability[item.id]?.actual_qty}
-                hasStock={stockAvailability[item.id]?.actual_qty > 0}
-                stockLoading={stockLoading[item.id]}
+                stockQty={item.is_stock_item === 1 ? stockAvailability[item.id]?.actual_qty : undefined}
+                hasStock={item.is_stock_item === 1 ? (stockAvailability[item.id]?.actual_qty > 0) : undefined}
+                stockLoading={item.is_stock_item === 1 ? stockLoading[item.id] : false}
               />
             ))}
           </div>

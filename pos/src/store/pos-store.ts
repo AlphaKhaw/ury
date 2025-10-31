@@ -32,6 +32,7 @@ export interface MenuItem extends Omit<APIMenuItem, 'rate' | 'item_image'> {
   quantity?: number;
   description?: string;
   special_dish?: 1 | 0;
+  is_stock_item?: 1 | 0;
   variants?: Array<{ id: string; name: string; price: number }>;
   addons?: Array<{ id: string; name: string; price: number; category: 'sides' | 'drinks' | 'desserts' }>;
   selectedVariant?: { id: string; name: string; price: number };
@@ -353,13 +354,18 @@ export const usePOSStore = create<POSStore>((set, get) => ({
 
       set({ menuItems });
 
-      // Now check stock availability for stock-maintaining items
+      // Now check stock availability for stock-maintaining items only
       if (get().posProfile?.warehouse) {
-        const itemsToCheck = menuItems.map(item => ({
-          item_code: item.item,
-          warehouse: get().posProfile.warehouse
-        }));
-        await get().checkBulkStockAvailability(itemsToCheck);
+        const itemsToCheck = menuItems
+          .filter(item => item.is_stock_item === 1) // Only check stock for stock items
+          .map(item => ({
+            item_code: item.item,
+            warehouse: get().posProfile.warehouse
+          }));
+        
+        if (itemsToCheck.length > 0) {
+          await get().checkBulkStockAvailability(itemsToCheck);
+        }
       }
     } catch (error) {
       set({ error: 'Failed to load menu items' });

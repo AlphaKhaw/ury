@@ -104,6 +104,9 @@ def getRestaurantMenu(pos_profile, room=None, order_type=None):
                     "rate": addon_rate
                 })
 
+        # Get item stock configuration
+        is_stock_item = frappe.db.get_value("Item", item.item, "is_stock_item") or 0
+        
         item_data = {
             "item": item.item,
             "item_name": item.item_name,
@@ -112,7 +115,8 @@ def getRestaurantMenu(pos_profile, room=None, order_type=None):
             "disabled": item.disabled,
             "item_image": frappe.db.get_value("Item", item.item, "image"),
             "course": item.course,
-            "add_ons": add_ons_with_rates
+            "add_ons": add_ons_with_rates,
+            "is_stock_item": is_stock_item
         }
         menu_items_with_image.append(item_data)
     modified = frappe.db.get_value("URY Menu", menu, "modified")

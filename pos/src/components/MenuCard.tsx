@@ -77,7 +77,7 @@ const MenuCard: FC<MenuCardProps> = ({
         <div className="h-5 mt-1">
           {stockLoading ? (
             <span className="text-xs text-gray-400">Checking stock...</span>
-          ) : typeof stockQty !== 'undefined' ? (
+          ) : typeof stockQty !== 'undefined' && typeof hasStock !== 'undefined' ? (
             <div className="flex items-center gap-1">
               {hasStock ? (
                 <span className="text-xs text-green-600">✓ {stockQty} in stock</span>
