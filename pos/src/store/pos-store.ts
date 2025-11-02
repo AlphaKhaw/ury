@@ -343,6 +343,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
         course: item.course,
         description: item.description || '',
         special_dish: item.special_dish || 0,
+        is_stock_item: item.is_stock_item || 0,
         tax_rate: 0,
         addons: item.add_ons?.map(addon => ({
           id: addon.item,
@@ -355,12 +356,12 @@ export const usePOSStore = create<POSStore>((set, get) => ({
       set({ menuItems });
 
       // Now check stock availability for stock-maintaining items only
-      if (get().posProfile?.warehouse) {
+      if (posProfile?.warehouse) {
         const itemsToCheck = menuItems
           .filter(item => item.is_stock_item === 1) // Only check stock for stock items
           .map(item => ({
             item_code: item.item,
-            warehouse: get().posProfile.warehouse
+            warehouse: posProfile.warehouse!
           }));
         
         if (itemsToCheck.length > 0) {

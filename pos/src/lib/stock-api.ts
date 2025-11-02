@@ -44,11 +44,13 @@ export const getBulkStockAvailability = async (items: Array<{item_code: string, 
       }
     );
     
-    // Convert ERPNext format [actual_qty, has_stock] to our expected object format
+    // Backend returns objects with {item_code, actual_qty, projected_qty, reserved_qty}
+    // or legacy ERPNext format [actual_qty, has_stock] array
     const convertedResult: Record<string, StockAvailability> = {};
     
     for (const [itemCode, stockData] of Object.entries(response.message)) {
       if (Array.isArray(stockData) && stockData.length >= 2) {
+        // Legacy ERPNext format: [actual_qty, has_stock]
         const actualQty = stockData[0] || 0;
         convertedResult[itemCode] = {
           item_code: itemCode,
@@ -56,7 +58,17 @@ export const getBulkStockAvailability = async (items: Array<{item_code: string, 
           projected_qty: actualQty,
           reserved_qty: 0
         };
+      } else if (typeof stockData === 'object' && stockData !== null && !Array.isArray(stockData)) {
+        // Modern object format from backend API
+        const stockObj = stockData as any; // Backend returns object with item_code, actual_qty, etc.
+        convertedResult[itemCode] = {
+          item_code: stockObj.item_code || itemCode,
+          actual_qty: stockObj.actual_qty || 0,
+          projected_qty: stockObj.projected_qty || stockObj.actual_qty || 0,
+          reserved_qty: stockObj.reserved_qty || 0
+        };
       } else {
+        // Fallback for unexpected format
         convertedResult[itemCode] = {
           item_code: itemCode,
           actual_qty: 0,
