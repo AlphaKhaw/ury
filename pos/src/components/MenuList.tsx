@@ -69,22 +69,34 @@ const MenuList: React.FC<MenuListProps> = ({ onItemClick }) => {
             "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3",
             isInteractionDisabled && "opacity-50 pointer-events-none"
           )}>
-            {filteredItems.map((item) => (
-              <MenuCard
-                key={item.id}
-                id={item.id}
-                name={item.name}
-                price={item.price}
-                item_image={item.image}
-                course={item.course}
-                item={item.item}
-                onClick={() => onItemClick(item)}
-                disabled={isInteractionDisabled}
-                stockQty={item.is_stock_item === 1 ? stockAvailability[item.id]?.actual_qty : undefined}
-                hasStock={item.is_stock_item === 1 ? (stockAvailability[item.id]?.actual_qty > 0) : undefined}
-                stockLoading={item.is_stock_item === 1 ? stockLoading[item.id] : false}
-              />
-            ))}
+            {filteredItems.map((item) => {
+              // Debug stock lookup for stock items
+              if (item.is_stock_item === 1) {
+                const stockData = stockAvailability[item.id];
+                if (!stockData) {
+                  console.warn(`No stock data found for item ${item.id} (item_code: ${item.item}). Available keys:`, Object.keys(stockAvailability));
+                } else {
+                  console.log(`Stock for ${item.id}:`, stockData);
+                }
+              }
+              
+              return (
+                <MenuCard
+                  key={item.id}
+                  id={item.id}
+                  name={item.name}
+                  price={item.price}
+                  item_image={item.image}
+                  course={item.course}
+                  item={item.item}
+                  onClick={() => onItemClick(item)}
+                  disabled={isInteractionDisabled}
+                  stockQty={item.is_stock_item === 1 ? stockAvailability[item.id]?.actual_qty : undefined}
+                  hasStock={item.is_stock_item === 1 ? (stockAvailability[item.id]?.actual_qty > 0) : undefined}
+                  stockLoading={item.is_stock_item === 1 ? stockLoading[item.id] : false}
+                />
+              );
+            })}
           </div>
         )}
       </div>

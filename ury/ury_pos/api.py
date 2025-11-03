@@ -724,6 +724,32 @@ def validate_pos_close(pos_profile):
 
 
 @frappe.whitelist()
+def test_stock_availability(item_code, warehouse):
+    """
+    Test endpoint to see what get_stock_availability actually returns
+    """
+    from erpnext.accounts.doctype.pos_invoice.pos_invoice import get_stock_availability
+    try:
+        stock_info = get_stock_availability(item_code, warehouse)
+        return {
+            'item_code': item_code,
+            'warehouse': warehouse,
+            'raw_stock_info': stock_info,
+            'type': str(type(stock_info)),
+            'is_list': isinstance(stock_info, list),
+            'is_tuple': isinstance(stock_info, tuple),
+            'is_dict': isinstance(stock_info, dict),
+            'is_number': isinstance(stock_info, (int, float)),
+            'length': len(stock_info) if hasattr(stock_info, '__len__') else None,
+            'first_element': stock_info[0] if isinstance(stock_info, (list, tuple)) and len(stock_info) > 0 else None,
+        }
+    except Exception as e:
+        return {
+            'error': str(e),
+            'traceback': frappe.get_traceback()
+        }
+
+@frappe.whitelist()
 def get_bulk_stock_availability(items):
     """
     Get stock availability for multiple items
@@ -741,27 +767,47 @@ def get_bulk_stock_availability(items):
         warehouse = item_data.get('warehouse')
         try:
             stock_info = get_stock_availability(item_code, warehouse)
-            frappe.logger().info(f"DEBUG: stock_info for {item_code}: {stock_info}, type: {type(stock_info)}")
             
-            # Convert ERPNext format [actual_qty, has_stock] to object format
-            if isinstance(stock_info, list) and len(stock_info) >= 2:
-                actual_qty = stock_info[0] or 0
-                result[item_code] = {
-                    'item_code': item_code,
-                    'actual_qty': actual_qty,
-                    'projected_qty': actual_qty,  # Use actual_qty as fallback
-                    'reserved_qty': 0
-                }
-                frappe.logger().info(f"DEBUG: Converted result for {item_code}: {result[item_code]}")
+            # ERPNext's get_stock_availability returns a tuple/list: (actual_qty, has_stock)
+            # where actual_qty is a float/int and has_stock is a boolean
+            actual_qty = 0
+            
+            # Handle tuple/list format (most common in ERPNext)
+            if isinstance(stock_info, (list, tuple)) and len(stock_info) >= 1:
+                qty_value = stock_info[0]
+                if qty_value is not None and qty_value != '':
+                    try:
+                        actual_qty = float(qty_value)
+                    except (ValueError, TypeError):
+                        actual_qty = 0
+                else:
+                    actual_qty = 0
+            # Handle direct numeric value
+            elif isinstance(stock_info, (int, float)):
+                actual_qty = float(stock_info)
+            # Handle dict format (if custom implementation)
+            elif isinstance(stock_info, dict):
+                qty_value = stock_info.get('actual_qty') or stock_info.get('qty') or stock_info.get('quantity')
+                if qty_value is not None and qty_value != '':
+                    try:
+                        actual_qty = float(qty_value)
+                    except (ValueError, TypeError):
+                        actual_qty = 0
             else:
-                result[item_code] = {
-                    'item_code': item_code,
-                    'actual_qty': 0,
-                    'projected_qty': 0,
-                    'reserved_qty': 0
-                }
+                # Log unexpected format for debugging
+                frappe.logger().warning(f"Unexpected stock_info format for {item_code}: {stock_info} (type: {type(stock_info).__name__})")
+                actual_qty = 0
+            
+            result[item_code] = {
+                'item_code': item_code,
+                'actual_qty': actual_qty,
+                'projected_qty': actual_qty,
+                'reserved_qty': 0
+            }
         except Exception as e:
             frappe.logger().error(f"DEBUG: Error for item {item_code}: {str(e)}")
+            import traceback
+            frappe.logger().error(f"DEBUG: Traceback: {traceback.format_exc()}")
             # If there's an error for a specific item, return 0 availability
             result[item_code] = {
                 'item_code': item_code,

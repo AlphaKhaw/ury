@@ -928,12 +928,20 @@ export const usePOSStore = create<POSStore>((set, get) => ({
       
       const stockInfo = await getBulkStockAvailability(items);
       
-      set((state) => ({
-        stockAvailability: { ...state.stockAvailability, ...stockInfo },
-        stockLoading: { ...state.stockLoading, ...Object.fromEntries(
-          items.map(item => [item.item_code, false])
-        ) }
-      }));
+      // Debug: Log stock info received
+      console.log('Stock info received in store:', stockInfo);
+      console.log('Items checked:', items.map(i => i.item_code));
+      
+      set((state) => {
+        const newStockAvailability = { ...state.stockAvailability, ...stockInfo };
+        console.log('Updated stockAvailability:', newStockAvailability);
+        return {
+          stockAvailability: newStockAvailability,
+          stockLoading: { ...state.stockLoading, ...Object.fromEntries(
+            items.map(item => [item.item_code, false])
+          ) }
+        };
+      });
     } catch (error) {
       console.error('Error checking bulk stock availability:', error);
       set((state) => {

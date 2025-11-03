@@ -48,6 +48,9 @@ export const getBulkStockAvailability = async (items: Array<{item_code: string, 
     // or legacy ERPNext format [actual_qty, has_stock] array
     const convertedResult: Record<string, StockAvailability> = {};
     
+    // Debug: Log raw response to help diagnose issues
+    console.log('Stock API Response:', response.message);
+    
     for (const [itemCode, stockData] of Object.entries(response.message)) {
       if (Array.isArray(stockData) && stockData.length >= 2) {
         // Legacy ERPNext format: [actual_qty, has_stock]
@@ -61,14 +64,33 @@ export const getBulkStockAvailability = async (items: Array<{item_code: string, 
       } else if (typeof stockData === 'object' && stockData !== null && !Array.isArray(stockData)) {
         // Modern object format from backend API
         const stockObj = stockData as any; // Backend returns object with item_code, actual_qty, etc.
+        
+        // Safely parse numeric values - handle strings, numbers, null, undefined
+        const parseQty = (val: any): number => {
+          if (val === null || val === undefined || val === '') return 0;
+          const num = typeof val === 'string' ? parseFloat(val) : Number(val);
+          return isNaN(num) ? 0 : num;
+        };
+        
+        const actualQty = parseQty(stockObj.actual_qty);
+        const projectedQty = parseQty(stockObj.projected_qty !== undefined ? stockObj.projected_qty : stockObj.actual_qty);
+        const reservedQty = parseQty(stockObj.reserved_qty);
+        
         convertedResult[itemCode] = {
           item_code: stockObj.item_code || itemCode,
-          actual_qty: stockObj.actual_qty || 0,
-          projected_qty: stockObj.projected_qty || stockObj.actual_qty || 0,
-          reserved_qty: stockObj.reserved_qty || 0
+          actual_qty: actualQty,
+          projected_qty: projectedQty,
+          reserved_qty: reservedQty
         };
+        
+        // Debug logging to help identify issues
+        console.log(`Stock parsed for ${itemCode}:`, {
+          raw: stockObj,
+          parsed: { actual_qty: actualQty, projected_qty: projectedQty, reserved_qty: reservedQty }
+        });
       } else {
         // Fallback for unexpected format
+        console.warn(`Unexpected stock data format for ${itemCode}:`, stockData, typeof stockData);
         convertedResult[itemCode] = {
           item_code: itemCode,
           actual_qty: 0,
@@ -78,6 +100,7 @@ export const getBulkStockAvailability = async (items: Array<{item_code: string, 
       }
     }
     
+    console.log('Final converted stock result:', convertedResult);
     return convertedResult;
   } catch (error: any) {
     if (error._server_messages) {
