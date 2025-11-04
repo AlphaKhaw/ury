@@ -484,7 +484,8 @@ def getPosProfile():
     posProfile = frappe.db.exists("POS Profile", {"branch": branchName})
     pos_profiles = frappe.get_doc("POS Profile", posProfile)
     global_defaults = frappe.get_single('Global Defaults')
-    disable_rounded_total = global_defaults.disable_rounded_total
+    # Prioritize POS Profile setting over Global Defaults
+    disable_rounded_total = pos_profiles.disable_rounded_total if hasattr(pos_profiles, 'disable_rounded_total') else global_defaults.disable_rounded_total
     
 
     if pos_profiles.branch == branchName:

@@ -78,11 +78,17 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
   const showAdjustment = Math.abs(roundedAdjustment) > 0.001;
   const totalDiscount = appliedDiscount;
   const discountedTotal = Math.max(0, subtotal - totalDiscount);
-  // If discount is applied, round up; else, round normally
-  const finalTotal = appliedDiscount > 0 ? Math.ceil(discountedTotal) : Math.round(discountedTotal);
+  
+  // Check if rounding is disabled in POS Profile
+  const isRoundingDisabled = storePosProfile?.disable_rounded_total === 1;
+  
+  // If rounding is disabled, use exact amounts; otherwise apply rounding logic
+  const finalTotal = isRoundingDisabled 
+    ? discountedTotal 
+    : (appliedDiscount > 0 ? Math.ceil(discountedTotal) : Math.round(discountedTotal));
   const finalAdjustment = finalTotal - discountedTotal;
   const roundedFinalAdjustment = Math.round(finalAdjustment * 100) / 100;
-  const showFinalAdjustment = Math.abs(roundedFinalAdjustment) > 0.001;
+  const showFinalAdjustment = !isRoundingDisabled && Math.abs(roundedFinalAdjustment) > 0.001;
 
   // Helper to calculate remaining balance
   const getRemainingBalance = (currentId: string) => {
