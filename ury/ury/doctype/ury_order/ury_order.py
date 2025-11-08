@@ -56,6 +56,14 @@ def create_stock_entries_for_invoice(invoice_doc):
             default_warehouse = frappe.db.get_value("POS Profile", invoice_doc.pos_profile, "warehouse")
             
             for item in stock_items:
+                # Check available stock before creating entry
+                available_qty = frappe.db.get_value("Bin", 
+                    {"item_code": item.item_code, "warehouse": default_warehouse}, 
+                    "actual_qty") or 0
+                
+                if float(available_qty) < float(item.qty):
+                    frappe.throw(f"Insufficient stock for {item.item_code}. Available: {available_qty}, Required: {item.qty}")
+                
                 stock_entry.append("items", {
                     "item_code": item.item_code,
                     "qty": item.qty,
@@ -67,8 +75,11 @@ def create_stock_entries_for_invoice(invoice_doc):
             stock_entry.submit()
             
     except Exception as e:
-        # Log the error but don't fail the invoice
-        frappe.log_error(f"Stock entry creation failed for invoice {invoice_doc.name}: {str(e)}", "Stock Entry Error")
+        # Log the error but don't fail the invoice - truncate long error messages
+        error_msg = str(e)
+        if len(error_msg) > 100:
+            error_msg = error_msg[:100] + "..."
+        frappe.log_error(f"Stock entry failed for {invoice_doc.name}: {error_msg}", "Stock Entry Error")
         pass
 
 
