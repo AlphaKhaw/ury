@@ -72,13 +72,20 @@ const MenuList: React.FC<MenuListProps> = ({ onItemClick }) => {
             {filteredItems.map((item) => {
               // Debug stock lookup for stock items
               if (item.is_stock_item === 1) {
-                const stockData = stockAvailability[item.id];
+                // Try both item.id and item.item as keys (item.item is the actual item_code)
+                const stockDataById = stockAvailability[item.id];
+                const stockDataByItemCode = stockAvailability[item.item];
+                const stockData = stockDataById || stockDataByItemCode;
+                
                 if (!stockData) {
                   console.warn(`No stock data found for item ${item.id} (item_code: ${item.item}). Available keys:`, Object.keys(stockAvailability));
                 } else {
-                  console.log(`Stock for ${item.id}:`, stockData);
+                  console.log(`Stock for ${item.id} (${item.item}):`, stockData);
                 }
               }
+              
+              // Use item.item (item_code) as the key for stock data lookup since that's what the API uses
+              const stockKey = item.item; // Use item_code instead of item.id
               
               return (
                 <MenuCard
@@ -91,9 +98,9 @@ const MenuList: React.FC<MenuListProps> = ({ onItemClick }) => {
                   item={item.item}
                   onClick={() => onItemClick(item)}
                   disabled={isInteractionDisabled}
-                  stockQty={item.is_stock_item === 1 ? stockAvailability[item.id]?.actual_qty : undefined}
-                  hasStock={item.is_stock_item === 1 ? (stockAvailability[item.id]?.actual_qty > 0) : undefined}
-                  stockLoading={item.is_stock_item === 1 ? stockLoading[item.id] : false}
+                  stockQty={item.is_stock_item === 1 ? stockAvailability[stockKey]?.actual_qty : undefined}
+                  hasStock={item.is_stock_item === 1 ? (stockAvailability[stockKey]?.actual_qty > 0) : undefined}
+                  stockLoading={item.is_stock_item === 1 ? stockLoading[stockKey] : false}
                 />
               );
             })}

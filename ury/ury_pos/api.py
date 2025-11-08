@@ -814,7 +814,8 @@ def get_bulk_stock_availability(items):
                 'item_code': item_code,
                 'actual_qty': 0,
                 'projected_qty': 0,
-                'reserved_qty': 0
+                'reserved_qty': 0,
+                'error': str(e)  # Include error info for debugging
             }
     
     frappe.logger().info(f"DEBUG: Final result: {result}")
