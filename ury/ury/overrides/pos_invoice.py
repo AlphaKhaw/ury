@@ -40,7 +40,7 @@ def get_pos_reserved_qty_from_table(child_table, item_code, warehouse):
         .where(
             (p_inv.name == p_item.parent)
             & (IfNull(p_inv.consolidated_invoice, "") == "")
-            & (p_item.docstatus.isin([0, 1]))  # FIXED: Include both draft (0) AND submitted (1)
+            & (p_inv.docstatus.isin([0, 1]))  # FIXED: Check parent docstatus, include both draft (0) AND submitted (1)
             & (p_item.item_code == item_code)
             & (p_item.warehouse == warehouse)
         )

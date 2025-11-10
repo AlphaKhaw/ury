@@ -258,7 +258,7 @@ export default function Orders() {
                       {/* Total - pushed to bottom like MenuCard */}
                       <div className="mt-auto pt-2">
                         <span className="text-sm font-semibold text-gray-900 tabular-nums">
-                          {formatCurrency(order.rounded_total)}
+                          {formatCurrency(order.rounded_total || order.grand_total || 0)}
                         </span>
                       </div>
                     </div>
@@ -564,7 +564,7 @@ export default function Orders() {
                 )}
                 {/* Total */}
                 <span className="ml-auto text-xl font-bold text-gray-900 whitespace-nowrap">
-                  {formatCurrency(selectedOrder.rounded_total)}
+                  {formatCurrency(selectedOrder.rounded_total || selectedOrder.grand_total || 0)}
                 </span>
               </div>
             </div>
