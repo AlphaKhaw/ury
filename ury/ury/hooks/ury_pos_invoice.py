@@ -13,7 +13,8 @@ def validate(doc, method):
     validate_invoice(doc, method)
     validate_customer(doc, method)
     validate_price_list(doc, method)
-    validate_stock_availability(doc, method)
+    # Stock validation is now handled by the overridden validate_stock_availablility method
+    # in install.py, so we don't need to call it here to avoid double validation
 
 
 def before_submit(doc, method):
@@ -210,51 +211,5 @@ def restrict_existing_order(doc, event):
             )
 
 
-def validate_stock_availability(doc, method):
-    """
-    Validate stock availability using our fixed stock calculation.
-    This replaces the monkey-patched method to avoid pickling issues.
-    """
-    if doc.is_return:
-        return
-    
-    if doc.docstatus.is_draft() and not frappe.db.get_value(
-        "POS Profile", doc.pos_profile, "validate_stock_on_save"
-    ):
-        return
-    
-    from erpnext.stock.stock_ledger import is_negative_stock_allowed
-    from frappe.utils import flt
-    from ury.ury.overrides.pos_invoice import get_stock_availability
-    
-    for d in doc.get("items"):
-        if not d.serial_and_batch_bundle:
-            # Skip validation for this item if negative stock is allowed
-            if is_negative_stock_allowed(item_code=d.item_code):
-                continue
-            
-            # Use our fixed get_stock_availability
-            # Exclude current invoice from reservation count to avoid double-counting
-            available_stock, is_stock_item = get_stock_availability(
-                d.item_code, 
-                d.warehouse, 
-                exclude_invoice=doc.name if doc.name else None
-            )
-            
-            item_code_bold = frappe.bold(d.item_code)
-            warehouse_bold = frappe.bold(d.warehouse)
-            
-            if is_stock_item and flt(available_stock) <= 0:
-                frappe.throw(
-                    frappe._("Row #{}: Item Code: {} is not available under warehouse {}.").format(
-                        d.idx, item_code_bold, warehouse_bold
-                    ),
-                    title=frappe._("Item Unavailable"),
-                )
-            elif is_stock_item and flt(available_stock) < flt(d.stock_qty):
-                frappe.throw(
-                    frappe._("Row #{}: Stock quantity not enough for Item Code: {} under warehouse {}.").format(
-                        d.idx, item_code_bold, warehouse_bold
-                    ),
-                    title=frappe._("Item Unavailable"),
-                )
+# Stock validation is now handled by overriding validate_stock_availablility in install.py
+# This avoids pickling issues while ensuring our fixed logic is used
