@@ -45,65 +45,9 @@ def apply_erpnext_overrides():
         pos_invoice_module.get_pos_reserved_qty = get_pos_reserved_qty
         pos_invoice_module.get_stock_availability = get_stock_availability
         
-        # Also patch the class method to ensure it uses our fixed function
-        from erpnext.accounts.doctype.pos_invoice.pos_invoice import POSInvoice
-        if hasattr(POSInvoice, 'validate_stock_availablility'):
-            # Store original method
-            original_validate = POSInvoice.validate_stock_availablility
-            
-            # Create wrapper that uses our fixed get_stock_availability
-            # Capture get_stock_availability in closure
-            def patched_validate_stock_availablility(self):
-                """Patched version that uses fixed stock availability"""
-                if self.is_return:
-                    return
-                
-                if self.docstatus.is_draft() and not frappe.db.get_value(
-                    "POS Profile", self.pos_profile, "validate_stock_on_save"
-                ):
-                    return
-                
-                from erpnext.stock.stock_ledger import is_negative_stock_allowed
-                from frappe.utils import flt
-                
-                # Import our fixed function
-                from ury.ury.overrides.pos_invoice import get_stock_availability
-                
-                for d in self.get("items"):
-                    if not d.serial_and_batch_bundle:
-                        # Skip validation for this item if negative stock is allowed
-                        if is_negative_stock_allowed(item_code=d.item_code):
-                            continue
-                        
-                        # Use our fixed get_stock_availability
-                        # Exclude current invoice from reservation count to avoid double-counting
-                        available_stock, is_stock_item = get_stock_availability(
-                            d.item_code, 
-                            d.warehouse, 
-                            exclude_invoice=self.name if self.name else None
-                        )
-                        
-                        item_code_bold = frappe.bold(d.item_code)
-                        warehouse_bold = frappe.bold(d.warehouse)
-                        _qty = frappe.bold(d.qty)
-                        
-                        if is_stock_item and flt(available_stock) <= 0:
-                            frappe.throw(
-                                frappe._("Row #{}: Item Code: {} is not available under warehouse {}.").format(
-                                    d.idx, item_code_bold, warehouse_bold
-                                ),
-                                title=frappe._("Item Unavailable"),
-                            )
-                        elif is_stock_item and flt(available_stock) < flt(d.stock_qty):
-                            frappe.throw(
-                                frappe._("Row #{}: Stock quantity not enough for Item Code: {} under warehouse {}.").format(
-                                    d.idx, item_code_bold, warehouse_bold
-                                ),
-                                title=frappe._("Item Unavailable"),
-                            )
-            
-            POSInvoice.validate_stock_availablility = patched_validate_stock_availablility
-            frappe.logger().info("URY: Patched POSInvoice.validate_stock_availablility method")
+        # NOTE: Stock validation is now handled via hooks in ury_pos_invoice.py
+        # to avoid pickling issues with monkey-patching the class
+        frappe.logger().info("URY: Stock validation handled via hooks (no class patching needed)")
         
         frappe.logger().info("URY: Applied ERPNext POS Invoice overrides successfully")
         
