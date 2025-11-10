@@ -182,9 +182,32 @@ scheduler_events = {
 # Overriding Methods
 # ------------------------------
 #
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "ury.event.get_events"
-# }
+# Override ERPNext functions with fixed versions
+override_whitelisted_methods = {
+	"erpnext.accounts.doctype.pos_invoice.pos_invoice.get_stock_availability": "ury.ury.overrides.pos_invoice.get_stock_availability"
+}
+
+# Override non-whitelisted functions via monkey patching
+# This is applied during app startup to fix critical ERPNext bugs
+def apply_erpnext_overrides():
+	"""Apply URY overrides to fix ERPNext bugs"""
+	try:
+		import erpnext.accounts.doctype.pos_invoice.pos_invoice as pos_invoice_module
+		from ury.ury.overrides.pos_invoice import (
+			get_pos_reserved_qty_from_table,
+			get_pos_reserved_qty,
+			get_stock_availability
+		)
+		
+		# Replace the buggy ERPNext functions with our fixed versions
+		pos_invoice_module.get_pos_reserved_qty_from_table = get_pos_reserved_qty_from_table
+		pos_invoice_module.get_pos_reserved_qty = get_pos_reserved_qty
+		pos_invoice_module.get_stock_availability = get_stock_availability
+		
+		frappe.logger().info("URY: Applied ERPNext POS Invoice overrides successfully")
+	except Exception as e:
+		frappe.logger().error(f"URY: Failed to apply ERPNext overrides: {str(e)}")
+
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
@@ -204,7 +227,8 @@ scheduler_events = {
 
 # Request Events
 # ----------------
-# before_request = ["ury.utils.before_request"]
+# Apply ERPNext overrides on first request to ensure they're active
+before_request = ["ury.ury.hooks.apply_erpnext_overrides"]
 # after_request = ["ury.utils.after_request"]
 
 # Job Events
