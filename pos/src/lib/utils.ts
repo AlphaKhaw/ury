@@ -7,6 +7,6 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number): string {
-  const symbol = storage.getItem('currencySymbol');
-  return `${symbol} ${amount}`;
+  const symbol = storage.getItem('currencySymbol') || 'RM'; // Fallback to RM if null
+  return `${symbol} ${amount.toFixed(2)}`;
 } 
