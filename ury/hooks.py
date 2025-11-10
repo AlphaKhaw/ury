@@ -190,6 +190,7 @@ override_whitelisted_methods = {
 # This is applied during app startup to fix critical ERPNext bugs
 def apply_erpnext_overrides():
 	"""Apply URY overrides to fix ERPNext bugs"""
+	import frappe
 	try:
 		import erpnext.accounts.doctype.pos_invoice.pos_invoice as pos_invoice_module
 		from ury.ury.overrides.pos_invoice import (
@@ -227,7 +228,7 @@ def apply_erpnext_overrides():
 # Request Events
 # ----------------
 # Apply ERPNext overrides on first request to ensure they're active
-before_request = ["ury.ury.hooks.apply_erpnext_overrides"]
+before_request = ["ury.hooks.apply_erpnext_overrides"]
 # after_request = ["ury.utils.after_request"]
 
 # Job Events
