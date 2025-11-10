@@ -21,16 +21,12 @@ def apply_erpnext_overrides():
         # Import frappe first
         import frappe
         
-        # Force reload the module to ensure we can override it
-        import sys
+        # Import the module WITHOUT reloading to preserve class identity
+        # Reloading would create a new class object and break pickling
         import importlib
         module_name = 'erpnext.accounts.doctype.pos_invoice.pos_invoice'
         
-        # Remove from cache if it exists
-        if module_name in sys.modules:
-            del sys.modules[module_name]
-        
-        # Import the module
+        # Import the module (don't delete from cache - that breaks pickling!)
         pos_invoice_module = importlib.import_module(module_name)
         
         # Import our fixed functions
