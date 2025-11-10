@@ -10,7 +10,7 @@ from frappe.query_builder.functions import Sum, IfNull
 from frappe.utils import flt
 
 
-def get_pos_reserved_qty_from_table(child_table, item_code, warehouse):
+def get_pos_reserved_qty_from_table(child_table, item_code, warehouse, exclude_invoice=None):
     """
     FIXED VERSION: Get the total reserved quantity for a given item in POS Invoices
     from a specific child table.
@@ -23,6 +23,7 @@ def get_pos_reserved_qty_from_table(child_table, item_code, warehouse):
                 (e.g., "POS Invoice Item", "Packed Item").
       item_code (str): The Item Code to filter by.
       warehouse (str): The Warehouse to filter by.
+      exclude_invoice (str, optional): Invoice name to exclude from reservation count
 
     Returns:
       float: The total reserved quantity for the item in the given
@@ -33,23 +34,29 @@ def get_pos_reserved_qty_from_table(child_table, item_code, warehouse):
 
     qty_column = "qty" if child_table == "Packed Item" else "stock_qty"
 
+    conditions = [
+        (p_inv.name == p_item.parent),
+        (IfNull(p_inv.consolidated_invoice, "") == ""),
+        (p_inv.docstatus.isin([0, 1])),  # FIXED: Check parent docstatus, include both draft (0) AND submitted (1)
+        (p_item.item_code == item_code),
+        (p_item.warehouse == warehouse)
+    ]
+    
+    # Exclude the current invoice if specified (to avoid double-counting during validation)
+    if exclude_invoice:
+        conditions.append(p_inv.name != exclude_invoice)
+
     reserved_qty = (
         frappe.qb.from_(p_inv)
         .from_(p_item)
         .select(Sum(p_item[qty_column]).as_("stock_qty"))
-        .where(
-            (p_inv.name == p_item.parent)
-            & (IfNull(p_inv.consolidated_invoice, "") == "")
-            & (p_inv.docstatus.isin([0, 1]))  # FIXED: Check parent docstatus, include both draft (0) AND submitted (1)
-            & (p_item.item_code == item_code)
-            & (p_item.warehouse == warehouse)
-        )
+        .where(frappe.qb.and_(*conditions))
     ).run(as_dict=True)
 
     return flt(reserved_qty[0].stock_qty) if reserved_qty else 0
 
 
-def get_pos_reserved_qty(item_code, warehouse):
+def get_pos_reserved_qty(item_code, warehouse, exclude_invoice=None):
     """
     FIXED VERSION: Calculate total quantity reserved for the given item and warehouse.
 
@@ -60,9 +67,15 @@ def get_pos_reserved_qty(item_code, warehouse):
     Excludes consolidated invoices (already merged into Sales Invoices via
     POS Closing Entry). Used to reflect near real-time availability in the
     POS UI and to prevent overselling while multiple sessions may be active.
+    
+    Args:
+        item_code (str): Item code to check
+        warehouse (str): Warehouse to check
+        exclude_invoice (str, optional): Invoice name to exclude from reservation count
+                                        (useful when validating the invoice itself)
     """
-    pinv_item_reserved_qty = get_pos_reserved_qty_from_table("POS Invoice Item", item_code, warehouse)
-    packed_item_reserved_qty = get_pos_reserved_qty_from_table("Packed Item", item_code, warehouse)
+    pinv_item_reserved_qty = get_pos_reserved_qty_from_table("POS Invoice Item", item_code, warehouse, exclude_invoice)
+    packed_item_reserved_qty = get_pos_reserved_qty_from_table("Packed Item", item_code, warehouse, exclude_invoice)
 
     reserved_qty = pinv_item_reserved_qty + packed_item_reserved_qty
 
@@ -70,9 +83,15 @@ def get_pos_reserved_qty(item_code, warehouse):
 
 
 @frappe.whitelist()
-def get_stock_availability(item_code, warehouse):
+def get_stock_availability(item_code, warehouse, exclude_invoice=None):
     """
     FIXED VERSION: Get stock availability with proper draft invoice reservation calculation.
+    
+    Args:
+        item_code (str): Item code to check
+        warehouse (str): Warehouse to check
+        exclude_invoice (str, optional): Invoice name to exclude from reservation count
+                                        (useful when validating the invoice itself)
     """
     if frappe.db.get_value("Item", item_code, "is_stock_item"):
         is_stock_item = True
@@ -81,7 +100,7 @@ def get_stock_availability(item_code, warehouse):
         from erpnext.accounts.doctype.pos_invoice.pos_invoice import get_bin_qty
         
         bin_qty = get_bin_qty(item_code, warehouse)
-        pos_sales_qty = get_pos_reserved_qty(item_code, warehouse)  # Use our fixed function
+        pos_sales_qty = get_pos_reserved_qty(item_code, warehouse, exclude_invoice)  # Use our fixed function
 
         return bin_qty - pos_sales_qty, is_stock_item
     else:
