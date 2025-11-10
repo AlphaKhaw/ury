@@ -78,7 +78,8 @@ website_route_rules = [
 # ------------
 
 # before_install = "ury.install.before_install"
-# after_install = "ury.install.after_install"
+after_install = "ury.install.apply_erpnext_overrides"
+after_migrate = "ury.install.apply_erpnext_overrides"
 
 # Uninstallation
 # ------------
@@ -188,25 +189,7 @@ override_whitelisted_methods = {
 
 # Override non-whitelisted functions via monkey patching
 # This is applied during app startup to fix critical ERPNext bugs
-def apply_erpnext_overrides():
-	"""Apply URY overrides to fix ERPNext bugs"""
-	import frappe
-	try:
-		import erpnext.accounts.doctype.pos_invoice.pos_invoice as pos_invoice_module
-		from ury.ury.overrides.pos_invoice import (
-			get_pos_reserved_qty_from_table,
-			get_pos_reserved_qty,
-			get_stock_availability
-		)
-		
-		# Replace the buggy ERPNext functions with our fixed versions
-		pos_invoice_module.get_pos_reserved_qty_from_table = get_pos_reserved_qty_from_table
-		pos_invoice_module.get_pos_reserved_qty = get_pos_reserved_qty
-		pos_invoice_module.get_stock_availability = get_stock_availability
-		
-		frappe.logger().info("URY: Applied ERPNext POS Invoice overrides successfully")
-	except Exception as e:
-		frappe.logger().error(f"URY: Failed to apply ERPNext overrides: {str(e)}")
+# The actual implementation is in ury/install.py to ensure it runs at the right time
 
 #
 # each overriding function accepts a `data` argument;
@@ -227,8 +210,8 @@ def apply_erpnext_overrides():
 
 # Request Events
 # ----------------
-# Apply ERPNext overrides on first request to ensure they're active
-before_request = ["ury.hooks.apply_erpnext_overrides"]
+# Apply ERPNext overrides on every request to ensure they're active (in case module was reloaded)
+before_request = ["ury.install.apply_erpnext_overrides"]
 # after_request = ["ury.utils.after_request"]
 
 # Job Events
