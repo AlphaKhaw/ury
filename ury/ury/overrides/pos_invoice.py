@@ -16,7 +16,7 @@ def get_pos_reserved_qty_from_table(child_table, item_code, warehouse, exclude_i
     from a specific child table.
 
     ORIGINAL BUG: Only counted submitted invoices (docstatus=1)
-    FIX: Now includes both draft (docstatus=0) AND submitted (docstatus=1) invoices
+    FIX: Only count DRAFT invoices (docstatus=0) - submitted invoices have already consumed stock
 
     Args:
       child_table (str): Name of the child table to query
@@ -27,30 +27,31 @@ def get_pos_reserved_qty_from_table(child_table, item_code, warehouse, exclude_i
 
     Returns:
       float: The total reserved quantity for the item in the given
-                warehouse from submitted AND DRAFT, unconsolidated POS Invoices.
+                warehouse from DRAFT, unconsolidated POS Invoices only.
     """
     p_inv = frappe.qb.DocType("POS Invoice")
     p_item = frappe.qb.DocType(child_table)
 
     qty_column = "qty" if child_table == "Packed Item" else "stock_qty"
 
-    conditions = [
-        (p_inv.name == p_item.parent),
-        (IfNull(p_inv.consolidated_invoice, "") == ""),
-        (p_inv.docstatus.isin([0, 1])),  # FIXED: Check parent docstatus, include both draft (0) AND submitted (1)
-        (p_item.item_code == item_code),
-        (p_item.warehouse == warehouse)
-    ]
+    # Build the where conditions using & operator (Frappe query builder syntax)
+    where_conditions = (
+        (p_inv.name == p_item.parent)
+        & (IfNull(p_inv.consolidated_invoice, "") == "")
+        & (p_inv.docstatus == 0)  # FIXED: Only count DRAFT invoices - submitted invoices already consumed stock
+        & (p_item.item_code == item_code)
+        & (p_item.warehouse == warehouse)
+    )
     
     # Exclude the current invoice if specified (to avoid double-counting during validation)
     if exclude_invoice:
-        conditions.append(p_inv.name != exclude_invoice)
+        where_conditions = where_conditions & (p_inv.name != exclude_invoice)
 
     reserved_qty = (
         frappe.qb.from_(p_inv)
         .from_(p_item)
         .select(Sum(p_item[qty_column]).as_("stock_qty"))
-        .where(frappe.qb.and_(*conditions))
+        .where(where_conditions)
     ).run(as_dict=True)
 
     return flt(reserved_qty[0].stock_qty) if reserved_qty else 0
@@ -61,7 +62,7 @@ def get_pos_reserved_qty(item_code, warehouse, exclude_invoice=None):
     FIXED VERSION: Calculate total quantity reserved for the given item and warehouse.
 
     Includes:
-    - Direct sales of the item in submitted AND DRAFT POS Invoices
+    - Direct sales of the item in DRAFT POS Invoices only (submitted invoices already consumed stock)
     - Sales of the item as a component of a Product Bundle
 
     Excludes consolidated invoices (already merged into Sales Invoices via
